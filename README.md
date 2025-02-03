@@ -1,1 +1,1 @@
-# equivariant_spring2025
+# Equivariant Machine Learning Projet 8 - Projecting to Equivariance Basis
