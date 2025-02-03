@@ -1,3 +1,4 @@
 notebooks/*
 *.egg -info
 results/model_library/*
+data/*

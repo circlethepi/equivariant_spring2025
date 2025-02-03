@@ -15,3 +15,25 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
 
     return
+
+# logging/writing things
+def make_logfile(filepath):
+    """opens a file (that will need to be closed)"""
+    logfile = open(filepath, 'a')
+    return logfile
+
+
+def print_and_write(message, *files):
+    """files should be open"""
+    print(message)
+    for file in files:
+        if file is not None:
+            file.write(message+'\n')
+    return
+
+def close_files(*files):
+    """closes logs"""
+    for file in files:
+        if file is not None:
+            file.close()
+    return
