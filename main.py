@@ -21,10 +21,30 @@ def build_parser():
     parser = argparse.ArgumentParser()
 
     ## TODO: model parameters (no projection)
-    parser.add_argument('--arch', type=str, nargs='*', help='architecture string')
+    parser.add_argument('--arch', type=str, nargs='*', 
+                        help='architecture string')
 
-    parser.add_argument('--batch-norm', action='store_true', help='Include batch norm')
+    parser.add_argument('--batch-norm', action='store_true', 
+                        help='Include batch norm')
     # parse architecture from string, build model input/output dimensions from datasets,
+
+    # classifier parameters
+    parser.add_argument('--avgpool', action='store_const', 
+                        default=True, const=True,
+                        help='use AveragePool for classifier (default: True)')
+    parser.add_argument('--avgpool-size', type=int, nargs='*',
+                        default=[1, 1], help='avgpool kernel size')
+    parser.add_argument('--classifier-layers', type=int, nargs='*', 
+                        help='linear classifier layers',
+                        default=[4096, 4096, 4096])
+    parser.add_argument('--classifier-bias', action='store_const', 
+                        default=True, const=True, 
+                        help='add bias to classifier (default: True)' )
+    parser.add_argument('--no-classifier-bias', action='store_false', 
+                        dest='classifier-bias', 
+                        help='remove bias from the classifier')
+    parser.add_argument('--classifier-droupout', type=float, default=0., 
+                        help='classifier droupout rate')
 
     ## TODO: dataset parameters
     # which dataset, input/output data dimensions (automatic in datasets?), data augmentation options
@@ -70,7 +90,7 @@ def do_code(args):
     # build/load model
 
     # train model
-    print(args.arch)
+    print(args.classifier_layers)
 
 
     return

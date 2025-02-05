@@ -10,7 +10,7 @@ from globals import *
 
 # load in the dataset based on arg parameters
 
-def get_datasets(dataset_name: str, greyscale: bool, image_size=None, ):
+def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     # TODO: add in aumentations / group actions (or maybe those go in make transforms or something)
     """get train and val datasets from params"""
 
@@ -73,6 +73,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None, ):
     return train_set, test_set, n_classes
 
 
+
 # TODO: additional custom transformations / data augmentations / group actions
 
 def additional_transforms(train_set, test_set, transforms):
@@ -106,6 +107,7 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
     test_loader = get_dataloader(test_set, args.batch_size, shuffle=False)
 
     return train_loader, test_loader
+
 
 
 # getting dataloaders for notebook environment / testing

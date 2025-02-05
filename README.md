@@ -6,3 +6,6 @@
 In order to use this code, you will need to verify that the following variables inside of `globals.py` are set correctly:
 1. `global_save_dir` where to save models throughout training
 2. `global_data_dir` where to put data files
+
+## Building a Model
+Currently: support for `MaxPool` and `Conv2d` layers
