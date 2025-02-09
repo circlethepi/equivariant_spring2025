@@ -52,7 +52,6 @@ class CustomModel(nn.Module):
 
         self.classifier = classifier
 
-    
     def forward(self, x):
         x = self.features(x)
         if self.do_avgpool:
@@ -88,6 +87,7 @@ class CustomClassifier(nn.Module):
 
 
     def build_layers(self, nonlinearity):
+        # TODO: different nonlinearities for different layers?
         classifier = ModelBuilder()
 
         in_dimension = self.input_size
@@ -113,3 +113,27 @@ class CustomClassifier(nn.Module):
     
     def forward(self, x):
         return self.classifier_layers(x)
+
+
+class EquivariantProjectionLayer(nn.Module):
+    """
+    Custom projection layer that projects previous layer weights into 
+    equivariant basis for specified group
+    """
+
+    def __init__(self, group_name, previous_layer: nn.Module, rank=float("inf")):
+        """
+        
+        """
+        super().__init__()
+    
+    def calculate_basis(self):
+        # calculate basis for transform from previous layer
+        
+        return
+        
+
+
+    def forward(self, x):
+
+        return x

@@ -37,7 +37,6 @@ def build_model_from_args(args, n_classes):
 
             input_channels = next
         
-
         custom_blocks.add_layer(custom_layer.model, configured=True)
 
     # make the avg pool
@@ -61,9 +60,6 @@ def build_model_from_args(args, n_classes):
     custom_model = CustomModel(features=custom_blocks.model, classifier=classifier,
                                avgpool=args.avgpool, 
                                avgpool_size=args.avgpool_size)
-
-
-    
 
     # print(custom_model.modules())
     return custom_model

@@ -109,7 +109,6 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
     return train_loader, test_loader
 
 
-
 # getting dataloaders for notebook environment / testing
 def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False):
     train_set, test_set, _ = get_datasets(dataset_name=dataset_name, greyscale=greyscale)
