@@ -26,6 +26,8 @@ def build_parser():
 
     parser.add_argument('--batch-norm', action='store_true', 
                         help='Include batch norm')
+    parser.add_argument('--bias', action='store_true', 
+                        help='add bias to conv layers')
     # parse architecture from string, build model input/output dimensions from datasets,
 
     # classifier parameters

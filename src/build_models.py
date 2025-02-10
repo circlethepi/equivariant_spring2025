@@ -26,8 +26,8 @@ def build_model_from_args(args, n_classes):
             # TODO: add identifiers/additional blocks into the builder here
             next = int(layer) # this means we get a size (for now)
             config = dict(in_channels=input_channels, out_channels=next, 
-                          kernel_size=3, padding=1)
-            custom_layer.add_layer(nn.Conv2d, module_config=config) # TODO add args to change 
+                          kernel_size=3, padding=1, bias=args.bias)
+            custom_layer.add_layer(nn.Conv2d, module_config=config) # TODO add args to change (kernel size)
             if args.batch_norm:
                 custom_layer.add_layer(nn.BatchNorm2d, dict(num_features=next)) 
             
