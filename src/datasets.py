@@ -13,7 +13,6 @@ from globals import *
 def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     # TODO: add in aumentations / group actions (or maybe those go in make transforms or something)
     """get train and val datasets from params"""
-
     train_transforms = []
     test_transforms = []
     both_transforms = []
@@ -24,7 +23,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     
     # elif dataset_name == "cifar":
     #     if image_size is None:
-    #         image_size = 32
+    #         image_size = 32   
     # TODO: move input image size calculation in module builder
 
     # Normalization 

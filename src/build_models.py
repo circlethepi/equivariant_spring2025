@@ -57,14 +57,13 @@ def build_model_from_args(args, n_classes):
     classifier = CustomClassifier(**config)
 
     # put everything together
-    custom_model = CustomModel(features=custom_blocks.model, classifier=classifier,
+    custom_model = CustomModel(features=custom_blocks.model, 
+                               classifier=classifier,
                                avgpool=args.avgpool, 
                                avgpool_size=args.avgpool_size)
 
     # print(custom_model.modules())
     return custom_model
-
-
 
 
 
