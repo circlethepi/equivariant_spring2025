@@ -3,6 +3,7 @@ import pickle
 
 import torch.utils.data.dataset
 import torchvision.transforms as transforms
+from torchvision.transforms import v2 as v2
 import torchvision.datasets as datasets
 
 # I am adding a validation set here
@@ -37,6 +38,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     elif greyscale:
         mean = [0.481]
         std = [0.239]
+        #Reduce channels to 1
         both_transforms.append(transforms.Grayscale())
     else:
         # mean = [0.485, 0.456, 0.406]
@@ -45,9 +47,10 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
         std = [0.5, 0.5, 0.5]
     both_transforms.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)
+            transforms.Normalize(mean=mean, std=std),
+            #added a grayscale or RGB transform
+            transforms.Grayscale(num_output_channels=1) if greyscale else transforms.v2.RGB()
         ])
-    
     standard_datasets = dict(
         cifar10=datasets.CIFAR10,
         cifar100=datasets.CIFAR100,
@@ -69,6 +72,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
         return dataset
     
     train_set = get_dataset(train=True)
+
     test_set = get_dataset(train=False)
 
     n_classes = 100 if dataset_name == "cifar100" else 10
@@ -105,7 +109,7 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
 
     train_set, test_set, n_classes = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
     
-    train_set, test_set = additional_transforms(train_set, test_set, transforms= None)
+    #train_set, test_set = additional_transforms(train_set, test_set, transforms= None)
 
     #Adding a validation set
     train_set, val_set = train_test_split(train_set, test_size=0.2, random_state=args.seed)
