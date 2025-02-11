@@ -4,16 +4,45 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np 
 from tqdm import tqdm   # for progress bars
+import os
+import math
 
 # training functionality for pre- and post- projection
 
 def train_model(args, model, train_loader, val_loader, optimizer, criterion, device):
+
+        #add option to save model states and loss/accuracy at nice batch checkpoints
+
+        # Option to save model states and loss/accuracy at checkpoints
+        save_checkpoints = args.save_checkpoints
+        checkpoint_type = args.checkpoint_type  # 'epoch' or 'batch'
+        
         # Training parameters
         epochs = args.epochs
+
+        if save_checkpoints:
+            # Create save directory if it doesn't exist
+            save_dir = args.save_dir if args.save_dir else './checkpoints'
+            os.makedirs(save_dir, exist_ok=True)
+            if not os.path.isabs(save_dir):
+                save_dir = os.path.abspath(save_dir)
+            if checkpoint_type == 'epoch':
+                save_dir = os.path.join(save_dir, 'epoch_checkpoints')
+            elif checkpoint_type == 'batch':
+                save_dir = os.path.join(save_dir, 'batch_checkpoints')
+            else:
+                raise ValueError('Invalid checkpoint type. Must be "epoch" or "batch"')
+            os.makedirs(save_dir, exist_ok=True)
         # Training and validation
         train_losses = []
         train_accuracies = []
         val_accuracies = []
+
+        if save_checkpoints and checkpoint_type == 'batch':
+            global_batch_counter = 0    # Counter for total number of batches processed
+            # Determine log-scaled batch intervals
+            total_batches = len(train_loader) * epochs
+            log_intervals = [int(math.pow(2, i)) for i in range(int(math.log2(total_batches)) + 1)]
     
         for epoch in range(epochs):
             model.train()
@@ -29,11 +58,25 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
                 loss.backward()
                 optimizer.step()
 
+                if save_checkpoints and checkpoint_type == 'batch':
+                    global_batch_counter += 1
+
                 running_loss += loss.item()
                 _, predicted = outputs.max(1)
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
-
+                # Save checkpoint if required
+                if save_checkpoints and checkpoint_type == 'batch' and global_batch_counter in log_intervals:
+                    checkpoint_path = os.path.join(save_dir, f'checkpoint_batch_{global_batch_counter}.pt')
+                    torch.save({
+                        'epoch': epoch,
+                        'batch': global_batch_counter,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': running_loss / (global_batch_counter % len(train_loader)),
+                        'accuracy': 100. * correct / total
+                    }, checkpoint_path)
+                    print(f'Saved checkpoint at batch {global_batch_counter}')
             train_loss = running_loss / len(train_loader)
             train_accuracy = 100. * correct / total
             train_losses.append(train_loss)
@@ -53,6 +96,18 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
 
             val_accuracy = 100. * correct / total
             val_accuracies.append(val_accuracy)
+
+            if save_checkpoints and checkpoint_type == 'epoch':
+                checkpoint_path = os.path.join(save_dir, f'checkpoint_epoch_{epoch+1}.pt')
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': train_loss,
+                    'train_accuracy': train_accuracy,
+                    'val_accuracy': val_accuracy
+                }, checkpoint_path)
+                print(f'Saved checkpoint at epoch {epoch+1}')
 
             print(f'Epoch {epoch+1}/{epochs}, Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%, Validation Accuracy: {val_accuracy:.2f}%')
 
