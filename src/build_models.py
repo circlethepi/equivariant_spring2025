@@ -1,5 +1,6 @@
 import torch.nn as nn
 from src.custom_blocks import ModelBuilder, CustomClassifier, CustomModel
+import os
 
 # loading models from disc /
 # building models from arg parameters
@@ -28,7 +29,15 @@ def build_model_from_args(args):
             next = int(layer) # this means we get a size (for now)
             config = dict(in_channels=input_channels, out_channels=next, 
                           kernel_size=3, padding=1, bias=args.bias)
-            custom_layer.add_layer(nn.Conv2d, module_config=config) # TODO add args to change (kernel size)
+            new_layer = nn.Conv2d(config)
+            if args.weight_normalization:
+                custom_blocks.add_layer(\
+                    nn.utils.parametrizations.weight_norm(new_layer),
+                        configured=True)
+            else:
+                custom_blocks.add_layer(new_layer, configured=True)
+
+            # TODO add args to change (kernel size)
             if args.batch_norm:
                 custom_layer.add_layer(nn.BatchNorm2d, dict(num_features=next)) 
             
@@ -65,6 +74,51 @@ def build_model_from_args(args):
     # print(custom_model.modules())
     return custom_model
 
+
+def get_model_savename(args, architecture=True, dataload=True, optimizer=True):
+    """
+    :param args.name-convention: str must be in ["both", "default", "custom"] 
+                    - determines which names to include in naming the model. 
+
+                    "default" uses default/generated name only from the model
+                    input parameters. "custom" uses custom/supplied name only 
+                    from the model input paramters. "both" will use both names
+                    # TODO: add adjusting which names get added to the default name
+    """
+
+    # get the architecture name
+    conv_arch = "-".join(args.arch)
+    batch_norm = "bn" if args.batch_norm else ""
+    bias = f'{"nobias" if not args.bias else ""}'
+    avg_pool = f'A({".".join(str(k) for k in args.avgpool_size)})' if args.avgpool else " "
+    classifier = f'+C{"-".join([str(k) for k in args.classifier_layers])}'
+    class_bias = f'{"nocbias" if not args.classifier_bias else ""}'
+    arch_name = "arch"+"".join([conv_arch, batch_norm, bias, avg_pool, classifier, class_bias])
+
+    # get the dataset name
+    dataset = args.dataset + '_'
+    greyscale = 'g_' if args.greyscale else ""
+    batchname = f'batch{args.batch_size}'
+    data_name = "".join([dataset, greyscale, batchname])
+
+    # get the training params name
+    optim = f'{args.optimizer}_lr{args.lr}_wd{args.weight_decay}'
+    cdrop = f'{args.classifier_dropout if args.classifier_dropout > 0 else ""}'
+    opt_name = "_".join([optim, cdrop])
+
+    # put the name together
+    default = "_".join([data_name, arch_name, opt_name])
+    custom = args.custom_name
+
+    name = ""
+    if args.name_convention == "default":
+        name += default
+    elif args.name_convention == "custom":
+        name += custom
+    else:
+        name = custom+'_'+default
+
+    return name
 
 
 
