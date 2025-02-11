@@ -1,2 +1,4 @@
-vgg2layer_mnist.pth
-\data
+notebooks/*
+*.egg -info
+results/model_library/*
+data/*
