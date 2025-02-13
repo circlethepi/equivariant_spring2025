@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from src.custom_blocks import ModelBuilder, CustomClassifier, CustomModel
 import os
@@ -15,7 +16,7 @@ def build_model_from_args(args):
     custom_blocks = ModelBuilder()
 
     # make the layers 
-    input_channels = get_input_channels(args)
+    input_channels = 1 if args.greyscale else 3
     for layer in args.arch:
 
         # custom layer block
@@ -29,7 +30,7 @@ def build_model_from_args(args):
             next = int(layer) # this means we get a size (for now)
             config = dict(in_channels=input_channels, out_channels=next, 
                           kernel_size=3, padding=1, bias=args.bias)
-            new_layer = nn.Conv2d(config)
+            new_layer = nn.Conv2d(**config) #Unpacks the dictionary into the function
             if args.weight_normalization:
                 custom_blocks.add_layer(\
                     nn.utils.parametrizations.weight_norm(new_layer),
@@ -53,11 +54,16 @@ def build_model_from_args(args):
     if args.avgpool:
         avgpool = nn.AdaptiveAvgPool2d(args.avgpool_size)
 
+    # Use a dummy input tensor to calculate the output size
+    dummy_input = torch.randn(1, 1 if args.greyscale else 3, args.input_height, args.input_width)
+    dummy_output = custom_blocks.model(dummy_input)
+    output_size = dummy_output.view(1, -1).size(1)
+
     # make the classifier
     if args.classifier_dropout == 0:
         args.classifier_dropout = None
     config = dict(
-        input_size = input_channels,
+        input_size = output_size,
         layer_sizes = args.classifier_layers,
         n_classes = args.n_classes,
         # TODO: nonlinearity for classifier here too
@@ -121,12 +127,11 @@ def get_model_savename(args, architecture=True, dataload=True, optimizer=True):
     return name
 
 
-
-
-def get_input_channels(args):
-    if "mnist" in args.dataset or args.greyscale:
-        return 1
-    else:
-        return 3
+#Removed this function since we may want to use something else
+#def get_input_channels(args):
+ #   if "mnist" in args.dataset or args.greyscale:
+   #     return 1
+    #else:
+     #   return 3
     
 # loading then adding in projection layers after a model is trained

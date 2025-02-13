@@ -49,7 +49,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
             #added a grayscale or RGB transform
-            transforms.Grayscale(num_output_channels=1) if greyscale else transforms.v2.RGB()
+            transforms.Grayscale() if greyscale else transforms.v2.RGB()
         ])
     standard_datasets = dict(
         cifar10=datasets.CIFAR10,
