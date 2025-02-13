@@ -1,6 +1,9 @@
-from src import build_models, datasets, train 
+from src import datasets, train 
+import src.build_models as build
+
 import argparse
 import os
+import sys
 import warnings
 
 import numpy as np
@@ -8,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import random
+import json
 
 from src.utils import *
 from globals import *
@@ -29,6 +33,8 @@ def build_parser():
                         help='Include batch norm')
     parser.add_argument('--bias', action='store_true', 
                         help='add bias to conv layers')
+    parser.add_argument('--normalize-weights', action='store_false',
+                        help='weight normalization')
     # parse architecture from string, build model input/output dimensions from datasets,
 
     # classifier parameters
@@ -56,7 +62,7 @@ def build_parser():
     parser.add_argument('--greyscale', '--grayscale', type=bool, default=False) # whether to make greyscale
 
     ## TODO: training parameters
-    parser.add_argument('--seed', type=int, help='seed for model initialization')
+    parser.add_argument('--seed', type=int, help='seed for model initialization', default=0)
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train')
     parser.add_argument('--batch-size', type=int, default=128, help='batch size')
     parser.add_argument('--optimizer', type=str, default='Adam', 
@@ -91,14 +97,24 @@ def build_parser():
                         help='restore best model for early stopping')
     
     # logging parameters
-    parser.add_argument('--save-model', action='store_true',    
-                        help='save the model')
-    parser.add_argument('--save-path', type=str, default='./models',
-                        help='path to save the model (default: ./models)')
+    parser.add_argument('--save-model', action='store_const', const=True, 
+                        default=True, help='save the model')
+    parser.add_argument('--dont-save-model', action='store_false', 
+                        dest='save-model', help="don't save model")
+    parser.add_argument('--save-path', type=str, default=global_save_dir,
+                        help='path to save the model (default: global_save_dir - see globals.py)')
     parser.add_argument('--load-model', action='store_true',
                         help='load the model')
-    parser.add_argument('--load-path', type=str, default='./models',
-                        help='path to load the model (default: ./models)')
+    parser.add_argument('--load-path', type=str, default=global_save_dir,
+                        help='path to load the model (default: global_save_dir - see globals.py)')
+    
+    parser.add_argument('--log-path', type=str, default=global_log_dir,
+                        help='path for log files (default: global_log_dir - see globals.py)')
+
+    parser.add_argument('--custom-name', type=str, help='custom save name')
+    naming_choices = ['custom', 'default', 'both']
+    parser.add_argument('--name-convention', type=str, choices=naming_choices,
+                        help='how to name the model dir')
 
     ## TODO: fine tuning/projection parameters
     # group/group action selection
@@ -129,16 +145,42 @@ def main():
 # the actual things we want to do
 def do_code(args):
 
+    # create saving/checkpoint configuration
+    basic_train_info = f'{args.dataset}_batchsize{args.batch_size}'
+    model_savename = build.get_model_savename(args)
+    model_savedir = os.path.join(args.save_path, model_savename)
+    checkpoint_filename = f'{basic_train_info}.pth.tar'
+    
+    if not os.path.exists(model_savedir):
+        os.makedirs(model_savedir)
+
+    # TODO: train loop take in this file, replace extension to include
+    # batch number, then save model state dict to the file
+    model_savefile = os.path.join(model_savedir, checkpoint_filename)
+
+    # logging configuration
+    log_savedir = os.path.join(args.log_path, model_savename)
+    if not os.path.exists(log_savedir):
+        os.makedirs(log_savedir)
+    logfile = make_logfile(os.path_join(log_savedir, f'{basic_train_info}.log'))
+
+    # save commandline entry
+    with open(os.path.join(model_savedir, 'args.json'), 'w') as file:
+        json.dump(args.__dict__, file, indent=2, default=str) 
+    print_and_write(f"Command line: {' '.join(sys.argv)}", logfile)
+
+
     # load datasets
     train_loader, val_loader, test_loader = datasets.get_dataloaders(args)
     
     # build/load model
-
-    model = build_models.build_model_from_args(args)
+    model = build.build_model_from_args(args)
 
     # train model
     print(args.classifier_layers)
 
+
+    close_files(logfile)
 
     return
 
