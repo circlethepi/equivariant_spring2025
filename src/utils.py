@@ -37,3 +37,10 @@ def close_files(*files):
         if file is not None:
             file.close()
     return
+
+def nice_interval(n: int):
+    pwr = 10 ** int(np.log10(n))
+
+    nice = True if (n == 0 or (n % pwr == 0 and n // pwr in (1, 2, 5))) else False
+    return nice
+

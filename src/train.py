@@ -6,10 +6,16 @@ import numpy as np
 from tqdm import tqdm   # for progress bars
 import os
 import math
+from src.utils import *
 
 # training functionality for pre- and post- projection
 
-def train_model(args, model, train_loader, val_loader, optimizer, criterion, device):
+def train_model(args, model, train_loader, val_loader, 
+                optimizer, criterion, device,
+                ):
+        """
+        Training loop that also logs information
+        """
 
         #add option to save model states and loss/accuracy at nice batch checkpoints
 
@@ -76,7 +82,7 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
                         'loss': running_loss / (global_batch_counter % len(train_loader)),
                         'accuracy': 100. * correct / total
                     }, checkpoint_path)
-                    print(f'Saved checkpoint at batch {global_batch_counter}')
+                    print_and_write(f'Saved checkpoint at batch {global_batch_counter}')
             train_loss = running_loss / len(train_loader)
             train_accuracy = 100. * correct / total
             train_losses.append(train_loss)
@@ -113,6 +119,7 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
 
         return train_losses, train_accuracies, val_accuracies
 
+
 def test_model(model, test_loader, device):
      # Test accuracy
     model.eval()
@@ -135,20 +142,29 @@ def test_model(model, test_loader, device):
 # train: take in args
 
 def train(args, model, train_loader, val_loader, test_loader):
-
     # get optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr) if args.optimizer == 'Adam' else optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr) if \
+        args.optimizer == 'Adam' else optim.SGD(model.parameters(), 
+                                                lr=args.lr, 
+                                                momentum=args.momentum)
     # get loss function
-    criterion = nn.CrossEntropyLoss() if args.criterion == 'CrossEntropyLoss' else nn.MSELoss()
+    criterion = nn.CrossEntropyLoss() if args.criterion == 'CrossEntropyLoss' \
+        else nn.MSELoss()
     # get device
-    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-    #print device
-    print(f"Device: {device}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if \
+                          torch.backends.mps.is_available() else "cpu")
+    # #print device
+    # print(f"Device: {device}")
     # send model to device
     model = model.to(device)
 
     # train model
-    train_losses, train_accuracies, val_accuracies = train_model(args, model, train_loader, val_loader, optimizer, criterion, device)
+    train_losses, train_accuracies, val_accuracies = train_model(args, model, 
+                                                                 train_loader, 
+                                                                 val_loader, 
+                                                                 optimizer, 
+                                                                 criterion, 
+                                                                 device)
     
     # test model
     test_accuracy = test_model(model, test_loader, device)

@@ -27,7 +27,8 @@ def build_parser():
     ## TODO: model parameters (no projection)
     parser.add_argument('--arch', type=str, nargs='*', 
                         help='architecture string')
-    parser.add_argument('--n_classes', type=int, nargs='*', help='number of classes')
+    # parser.add_argument('--n_classes', type=int, nargs='*', help='number of classes')
+    # added way to get from dataset in build_models ::MO 2025-02-13
 
     parser.add_argument('--batch-norm', action='store_true', 
                         help='Include batch norm')
@@ -41,8 +42,8 @@ def build_parser():
     parser.add_argument('--avgpool', action='store_const', 
                         default=True, const=True,
                         help='use AveragePool for classifier (default: True)')
-    parser.add_argument('--avgpool-size', type=int, nargs='*',
-                        default=[1, 1], help='avgpool kernel size')
+    parser.add_argument('--avgpool-size', type=int, 
+                        default=1, help='avgpool kernel size')
     parser.add_argument('--classifier-layers', type=int, nargs='*', 
                         help='linear classifier layers',
                         default=[4096, 4096, 4096])
@@ -115,6 +116,10 @@ def build_parser():
     naming_choices = ['custom', 'default', 'both']
     parser.add_argument('--name-convention', type=str, choices=naming_choices,
                         help='how to name the model dir')
+    
+    # model checkpoint paramters
+    parser.add_argument('--save-epoch', action='store_true',
+                        help='save by epoch (default: save at batch counts of form [1,2,5]eK )')
 
     ## TODO: fine tuning/projection parameters
     # group/group action selection
@@ -156,7 +161,7 @@ def do_code(args):
 
     # TODO: train loop take in this file, replace extension to include
     # batch number, then save model state dict to the file
-    model_savefile = os.path.join(model_savedir, checkpoint_filename)
+    model_savefilename = os.path.join(model_savedir, checkpoint_filename)
 
     # logging configuration
     log_savedir = os.path.join(args.log_path, model_savename)

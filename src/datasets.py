@@ -22,15 +22,6 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     test_transforms = []
     both_transforms = []
 
-    # if dataset_name == "mnist":
-    #     if image_size is None:
-    #         image_size = 28
-    
-    # elif dataset_name == "cifar":
-    #     if image_size is None:
-    #         image_size = 32
-    # TODO: move input image size calculation in module builder
-
     # Normalization 
     if dataset_name == 'mnist':
         mean = [0.1307]
@@ -75,9 +66,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
 
     test_set = get_dataset(train=False)
 
-    n_classes = 100 if dataset_name == "cifar100" else 10
-
-    return train_set, test_set, n_classes
+    return train_set, test_set
 
 
 
@@ -92,6 +81,7 @@ def additional_transforms(train_set, test_set, transforms):
 def get_dataloader(dataset, batch_size, shuffle):
     """get dataloader from dataset"""
     return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4, pin_memory=True)
+
 
 
 def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
@@ -110,18 +100,16 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
     train_set, test_set, n_classes = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
     
     #train_set, test_set = additional_transforms(train_set, test_set, transforms= None)
-
     #Adding a validation set
     train_set, val_set = train_test_split(train_set, test_size=0.2, random_state=args.seed)
-
     train_loader = get_dataloader(train_set, args.batch_size, shuffle=True)
 
     #Added a val loader
     val_loader = get_dataloader(val_set, args.batch_size, shuffle=False)
-
     test_loader = get_dataloader(test_set, args.batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader
+
 
 
 # getting dataloaders for notebook environment / testing
