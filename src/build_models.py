@@ -53,6 +53,7 @@ def build_model_from_args(args):
     # make the avg pool
     if args.avgpool:
         avgpool = nn.AdaptiveAvgPool2d(args.avgpool_size)
+        custom_blocks.add_layer(avgpool, configured=True)
 
     # Use a dummy input tensor to calculate the output size
     dummy_input = torch.randn(1, 1 if args.greyscale else 3, args.input_height, args.input_width)
