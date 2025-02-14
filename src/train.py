@@ -1,4 +1,3 @@
-from src import build_models, datasets
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -6,142 +5,236 @@ import numpy as np
 from tqdm import tqdm   # for progress bars
 import os
 import math
+import json
+import sys
+
+from src import build_models as build, datasets
 from src.utils import *
+
 
 # training functionality for pre- and post- projection
 
-def train_model(args, model, train_loader, val_loader, 
-                optimizer, criterion, device,
+def train_model(model, train_loader, val_loader, #args, 
+                optimizer, criterion, device, epochs,
+                logfile,
+                checkpoint_type=None, checkpoint_path=None, save:bool=False, # can convert args to this maybe
                 ):
         """
         Training loop that also logs information
-        """
 
-        #add option to save model states and loss/accuracy at nice batch checkpoints
-
-        # Option to save model states and loss/accuracy at checkpoints
-        save_checkpoints = args.save_checkpoints
-        checkpoint_type = args.checkpoint_type  # 'epoch' or 'batch'
+        :param model:
+        :param train_loader:
+        :param val_loader:
         
-        # Training parameters
-        epochs = args.epochs
+        :param logfile:
+        :param checkpoint_type:
+        :param_checkpoint_path:
+        :param_save: 
+        """
+        if save:
+            assert checkpoint_type in ("batch", "epoch")
+            assert checkpoint_path is not None
 
-        if save_checkpoints:
-            # Create save directory if it doesn't exist
-            save_dir = args.save_dir if args.save_dir else './checkpoints'
-            os.makedirs(save_dir, exist_ok=True)
-            if not os.path.isabs(save_dir):
-                save_dir = os.path.abspath(save_dir)
-            if checkpoint_type == 'epoch':
-                save_dir = os.path.join(save_dir, 'epoch_checkpoints')
-            elif checkpoint_type == 'batch':
-                save_dir = os.path.join(save_dir, 'batch_checkpoints')
-            else:
-                raise ValueError('Invalid checkpoint type. Must be "epoch" or "batch"')
-            os.makedirs(save_dir, exist_ok=True)
-        # Training and validation
         train_losses = []
-        train_accuracies = []
-        val_accuracies = []
+        train_accuracies_1 = []
+        train_accuracies_5 = []
 
-        if save_checkpoints and checkpoint_type == 'batch':
-            global_batch_counter = 0    # Counter for total number of batches processed
-            # Determine log-scaled batch intervals
-            total_batches = len(train_loader) * epochs
-            log_intervals = [int(math.pow(2, i)) for i in range(int(math.log2(total_batches)) + 1)]
+        val_losses = []
+        val_accuracies_1 = []
+        val_accuracies_5 = []
+        glboal_batch_counter = 0 # counter for batches processed
     
-        for epoch in range(epochs):
-            model.train()
-            running_loss = 0.0
-            correct = 0
-            total = 0
+        for epoch in range(1, epochs+1):
 
-            for inputs, labels in tqdm(train_loader):
+            # Validation 
+            val_loss, val1, val5 = test_model(model, val_loader, device, topk=(1,5,), desc=f'Val epoch {epoch-1}')
+            val_losses.append(val_loss)
+            val_accuracies_1.append(val1)
+            val_accuracies_5.append(val5)
+
+            message = f'val epoch {epoch-1}/{epochs}\nVal Loss: {val_loss}, val@1: {val1:.2f}%, val@5: {val5:.2f}%'
+            print_and_write(message, logfile)
+            
+            # Train
+            model.train()
+            train1 = AverageMeter('acc1')
+            train5 = AverageMeter('acc5')
+            train_loss = AverageMeter('loss')
+
+            for inputs, labels in tqdm(train_loader, desc=f'Train epoch {epoch}'):
                 inputs, labels = inputs.to(device), labels.to(device)
-                optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
+
+                optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-                if save_checkpoints and checkpoint_type == 'batch':
-                    global_batch_counter += 1
+                # update batch counter
+                global_batch_counter += 1
 
-                running_loss += loss.item()
-                _, predicted = outputs.max(1)
-                total += labels.size(0)
-                correct += predicted.eq(labels).sum().item()
+                # running_loss += loss.item()
+                train_loss.update(loss.item(), outputs.size(0))
+                train_acc1, train_acc5 = accuracy(outputs, labels, topk=(1,5))
+                train1.update(train_acc1[0], outputs.size(0))
+                train5.update(train_acc5[0], outputs.size(0))
+
+
                 # Save checkpoint if required
-                if save_checkpoints and checkpoint_type == 'batch' and global_batch_counter in log_intervals:
-                    checkpoint_path = os.path.join(save_dir, f'checkpoint_batch_{global_batch_counter}.pt')
-                    torch.save({
+                if save and checkpoint_type == "batch":
+                    save_model({
                         'epoch': epoch,
                         'batch': global_batch_counter,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
-                        'loss': running_loss / (global_batch_counter % len(train_loader)),
-                        'accuracy': 100. * correct / total
-                    }, checkpoint_path)
-                    print_and_write(f'Saved checkpoint at batch {global_batch_counter}')
-            train_loss = running_loss / len(train_loader)
-            train_accuracy = 100. * correct / total
-            train_losses.append(train_loss)
-            train_accuracies.append(train_accuracy)
+                        'loss': train_loss.avg,
+                        'train_accuracy_1': train1.avg,
+                        'train_accuracy_5': train5.avg,
+                        'val_loss': val_loss,
+                        'val_accuracy_1': val1,
+                        'val_accuracy_5': val5, # val accs from epoch (epoch-1)
+                    }, glboal_batch_counter, checkpoint_type, checkpoint_path)
+                
+                    # print_and_write(f'Saved checkpoint at batch {global_batch_counter}')
 
-            # Validation
-            model.eval()
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for inputs, labels in tqdm(val_loader):
-                    inputs, labels = inputs.to(device), labels.to(device)
-                    outputs = model(inputs)
-                    _, predicted = outputs.max(1)
-                    total += labels.size(0)
-                    correct += predicted.eq(labels).sum().item()
+            # train_loss = running_loss / len(train_loader)
+            # train_accuracy = 100. * correct / total
+            train_losses.append(train_loss.avg)
+            train_accuracies_1.append(train1.avg)
+            train_accuracies_5.append(train5.avg)
 
-            val_accuracy = 100. * correct / total
-            val_accuracies.append(val_accuracy)
-
-            if save_checkpoints and checkpoint_type == 'epoch':
-                checkpoint_path = os.path.join(save_dir, f'checkpoint_epoch_{epoch+1}.pt')
-                torch.save({
-                    'epoch': epoch,
+            # epoch save
+            if save and checkpoint_type=='epoch':
+                save_model({
+                    'epoch': epoch-1,
+                    'batch': global_batch_counter,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': train_loss,
-                    'train_accuracy': train_accuracy,
-                    'val_accuracy': val_accuracy
-                }, checkpoint_path)
-                print(f'Saved checkpoint at epoch {epoch+1}')
+                    # 'loss': running_loss / (global_batch_counter % len(train_loader)),
+                    'loss' : train_loss.avg,
+                    'train_accuracy_1': train1.avg,
+                    'train_accuracy_5': train5.avg,
+                    'val_loss': val_loss,
+                    'val_accuracy_1': val1,
+                    'val_accuracy_5': val5,
+                }, epoch-1, checkpoint_type, checkpoint_path)
+            
+            message = f'train epoch {epoch}/{epochs}\nLoss: {train_loss.avg:.4f}, train@1: {train1.avg:.2f}%, train@5: {train5.avg:.2f}%'
+            print_and_write(message, logfile)
 
-            print(f'Epoch {epoch+1}/{epochs}, Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%, Validation Accuracy: {val_accuracy:.2f}%')
+        # end of training val and save if applicable
+        val_loss, val1, val5 = test_model(model, val_loader, device, topk=(1,5,), desc=f'Val epoch {epoch-1}')
+        val_losses.append(val_loss)
+        val_accuracies_1.append(val1)
+        val_accuracies_5.append(val5)
+        if save:
+            save_model({
+                    'epoch': epoch-1,
+                    'batch': global_batch_counter,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    # 'loss': running_loss / (global_batch_counter % len(train_loader)),
+                    'loss' : train_loss.avg,
+                    'train_accuracy_1': train1.avg,
+                    'train_accuracy_5': train5.avg,
+                    'val_loss': val_loss,
+                    'val_accuracy_1': val1,
+                    'val_accuracy_5': val5,
+                }, epoch-1, checkpoint_type, checkpoint_path, force=True)
+        
+        message = f'final val epoch {epoch-1}/{epochs}\nVal Loss: {val_loss}, val@1: {val1:.2f}%, val@5: {val5:.2f}%'
+        print_and_write(message, logfile)
+        
+        return train_losses, train_accuracies_1, train_accuracies_5, val_losses, val_accuracies_1, val_accuracies_5
 
-        return train_losses, train_accuracies, val_accuracies
+
+def save_model(save_state, interval, checkpoint_type, checkpoint_path, force=False):
+    if nice_interval(interval) or interval == 0 or force:
+        if checkpoint_type == "batch":
+            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_batch{interval}.pth.tar'))
+        elif checkpoint_type == "epoch":
+            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar'))
 
 
-def test_model(model, test_loader, device):
+
+def test_model(model, test_loader, criterion, device, topk=(1,), desc=None, print_acc=False):
      # Test accuracy
+    meters = [AverageMeter(name=f'acc{k}') for k in topk]
+    loss_meter = AverageMeter(name='loss')
     model.eval()
-    correct = 0
-    total = 0
+
     with torch.no_grad():
-        for inputs, labels in tqdm(test_loader):
+        for inputs, labels in tqdm(test_loader, desc=desc):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
 
-    test_accuracy = 100. * correct / total
-    print(f'Test Accuracy: {test_accuracy:.2f}%')
+            accs = accuracy(outputs, labels, topk)
+            for k in range(len(topk)):
+                meters[k].update(accs[k][0], outputs.size(0))
+            
+            loss_meter.update(criterion(outputs, labels).item(), outputs.size(0))
 
-    return test_accuracy
+    outstrings = [f'Top {topk[k]}: {meters[k].avg:.2f}%' for k in range(len(topk))]
+    if print_acc:
+        print('\n'.join(outstrings))
+
+    return [loss_meter.avg] + [meters[k].avg for k in range(len(meters))] 
+
+
+def accuracy(output, target, topk=(1,)):
+    """top k precision for specifed k values"""
+    maxk = max(topk)
+    batch_size=target.size(0)
+
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+    res = []
+    for k in topk:
+        correct_k = correct[:k].reshape(-1).float().sum(0)
+        res.append(correct_k.mul(100.0/batch_size))
+
+    return res
+
      
 
-# train: take in args
+def parse_checkpoint_log_info(args):
+    basic_train_info = f'{args.dataset}_batchsize{args.batch_size}'
+    model_savename = build.get_model_savename(args)
 
+    model_savedir = os.path.join(args.save_path, model_savename)
+    checkpoint_filename = f'{basic_train_info}.pth.tar'
+    checkpoint_type = "epoch" if args.save_epoch else "batch"
+    
+    if not os.path.exists(model_savedir):
+        os.makedirs(model_savedir)
+
+    # TODO: train loop take in this file, replace extension to include
+    # batch number, then save model state dict to the file
+    model_savefilename = os.path.join(model_savedir, checkpoint_filename)
+
+    # logging configuration
+    log_savedir = os.path.join(args.log_path, model_savename)
+    if not os.path.exists(log_savedir):
+        os.makedirs(log_savedir)
+    logfile = make_logfile(os.path_join(log_savedir, f'{basic_train_info}.log'))
+
+    # save commandline entry to log
+    with open(os.path.join(model_savedir, 'args.json'), 'w') as file:
+        json.dump(args.__dict__, file, indent=2, default=str) 
+    print_and_write(f"Command line: {' '.join(sys.argv)}", logfile)
+
+    return model_savefilename, checkpoint_type, logfile
+
+
+
+# train: take in args
 def train(args, model, train_loader, val_loader, test_loader):
+
+    # get checkpoint info
+    model_savefilename, checkpoint_type, logfile = parse_checkpoint_log_info(args)
+
     # get optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr) if \
         args.optimizer == 'Adam' else optim.SGD(model.parameters(), 
@@ -153,26 +246,32 @@ def train(args, model, train_loader, val_loader, test_loader):
     # get device
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if \
                           torch.backends.mps.is_available() else "cpu")
-    # #print device
-    # print(f"Device: {device}")
+
+    print_and_write(f'Training epochs: {args.epochs}, Device: {device}', logfile)
+    
     # send model to device
     model = model.to(device)
 
-    # train model
-    train_losses, train_accuracies, val_accuracies = train_model(args, model, 
-                                                                 train_loader, 
-                                                                 val_loader, 
-                                                                 optimizer, 
-                                                                 criterion, 
-                                                                 device)
+    train_losses, train_1, train_5, val_losses, val_1, val_5 = train_model(model=model, 
+                train_loader=train_loader, val_loader=val_loader, 
+                optimizer=optimizer, criterion=criterion, device=device, 
+                epochs=args.epochs, logfile=logfile, checkpoint_type=checkpoint_type,
+                checkpoint_path=model_savefilename, save=args.save_model)
     
     # test model
-    test_accuracy = test_model(model, test_loader, device)
+    test_loss, test_1, test_5 = test_model(model, test_loader, criterion, device, topk=(1, 5),
+                                           desc='Final Test')
+    message = f'Test @{args.epochs}\nLoss: {test_loss}, test@1: {test_1:.2f}%, test@5: {test_5:.2f}%'
+    print_and_write(message, logfile)
 
-    return train_losses, train_accuracies, val_accuracies, test_accuracy
+    close_files(logfile)
+
+    return train_losses, train_1, train_5, val_losses, val_1, val_5, test_loss, test_1, test_5
 
 ## build model from model builder
     # create log file
 ## train for args.epochs (TODO: add to args)
 ## log model states/ loss/ accuracy at nice batch checkpoints
 ## save model to disk
+
+
