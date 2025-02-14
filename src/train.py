@@ -1,3 +1,4 @@
+import wandb
 from src import build_models, datasets
 import torch
 import torch.nn as nn
@@ -9,20 +10,25 @@ import math
 
 # training functionality for pre- and post- projection
 
-def train_model(args, model, train_loader, val_loader, optimizer, criterion, device):
+def train_log(loss, examples_seen, epoch):
+    """Log training progress"""
+    wandb.log({"epoch": epoch, "loss": loss}, step=examples_seen)
+    print(f'Epoch {epoch}, Examples seen: {examples_seen}, Loss: {loss:.4f}')
+
+def train_model(config, model, train_loader, val_loader, optimizer, criterion, device):
 
         #add option to save model states and loss/accuracy at nice batch checkpoints
 
         # Option to save model states and loss/accuracy at checkpoints
-        save_checkpoints = args.save_checkpoints
-        checkpoint_type = args.checkpoint_type  # 'epoch' or 'batch'
+        save_checkpoints = config.save_checkpoints
+        checkpoint_type = config.checkpoint_type  # 'epoch' or 'batch'
         
         # Training parameters
-        epochs = args.epochs
+        epochs = config.epochs
 
         if save_checkpoints:
             # Create save directory if it doesn't exist
-            save_dir = args.save_dir if args.save_dir else './checkpoints'
+            save_dir = config.save_dir if config.save_dir else './checkpoints'
             os.makedirs(save_dir, exist_ok=True)
             if not os.path.isabs(save_dir):
                 save_dir = os.path.abspath(save_dir)
@@ -38,19 +44,21 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
         train_accuracies = []
         val_accuracies = []
 
-        if save_checkpoints and checkpoint_type == 'batch':
-            global_batch_counter = 0    # Counter for total number of batches processed
-            # Determine log-scaled batch intervals
-            total_batches = len(train_loader) * epochs
-            log_intervals = [int(math.pow(2, i)) for i in range(int(math.log2(total_batches)) + 1)]
     
-        for epoch in range(epochs):
+        global_batch_counter = 0    # Counter for total number of batches processed
+        examples_seen = 0           # Counter for total number of examples processed
+        # Determine log-scaled batch intervals
+        total_batches = len(train_loader) * epochs
+        log_intervals = [int(math.pow(2, i)) for i in range(int(math.log2(total_batches)) + 1)]
+        wandb.watch(model, criterion, log='all', log_freq=10)
+
+        for epoch in tqdm(range(epochs)):
             model.train()
             running_loss = 0.0
             correct = 0
             total = 0
 
-            for inputs, labels in tqdm(train_loader):
+            for inputs, labels in train_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
                 optimizer.zero_grad()
                 outputs = model(inputs)
@@ -58,8 +66,11 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
                 loss.backward()
                 optimizer.step()
 
-                if save_checkpoints and checkpoint_type == 'batch':
-                    global_batch_counter += 1
+                examples_seen += labels.size(0)
+                global_batch_counter += 1
+
+                if ((global_batch_counter % 10) == 0):
+                    train_log(loss, examples_seen, epoch)
 
                 running_loss += loss.item()
                 _, predicted = outputs.max(1)
@@ -87,7 +98,7 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
             correct = 0
             total = 0
             with torch.no_grad():
-                for inputs, labels in tqdm(val_loader):
+                for inputs, labels in val_loader:
                     inputs, labels = inputs.to(device), labels.to(device)
                     outputs = model(inputs)
                     _, predicted = outputs.max(1)
@@ -110,7 +121,7 @@ def train_model(args, model, train_loader, val_loader, optimizer, criterion, dev
                 print(f'Saved checkpoint at epoch {epoch+1}')
 
             print(f'Epoch {epoch+1}/{epochs}, Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%, Validation Accuracy: {val_accuracy:.2f}%')
-
+            wandb.log({"train_accuracy": train_accuracy, "val_accuracy": val_accuracy, "train_loss": train_loss}, step=examples_seen)
         return train_losses, train_accuracies, val_accuracies
 
 def test_model(model, test_loader, device):
@@ -129,17 +140,15 @@ def test_model(model, test_loader, device):
     test_accuracy = 100. * correct / total
     print(f'Test Accuracy: {test_accuracy:.2f}%')
 
+    wandb.log({"test_accuracy": test_accuracy})
+
     return test_accuracy
      
 
-# train: take in args
+# train: take in config
 
-def train(args, model, train_loader, val_loader, test_loader):
+def train(config, model, train_loader, val_loader, test_loader, criterion, optimizer):
 
-    # get optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.lr) if args.optimizer == 'Adam' else optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-    # get loss function
-    criterion = nn.CrossEntropyLoss() if args.criterion == 'CrossEntropyLoss' else nn.MSELoss()
     # get device
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     #print device
@@ -148,7 +157,7 @@ def train(args, model, train_loader, val_loader, test_loader):
     model = model.to(device)
 
     # train model
-    train_losses, train_accuracies, val_accuracies = train_model(args, model, train_loader, val_loader, optimizer, criterion, device)
+    train_losses, train_accuracies, val_accuracies = train_model(config, model, train_loader, val_loader, optimizer, criterion, device)
     
     # test model
     test_accuracy = test_model(model, test_loader, device)
@@ -157,6 +166,6 @@ def train(args, model, train_loader, val_loader, test_loader):
 
 ## build model from model builder
     # create log file
-## train for args.epochs (TODO: add to args)
+## train for config.epochs (TODO: add to config)
 ## log model states/ loss/ accuracy at nice batch checkpoints
 ## save model to disk
