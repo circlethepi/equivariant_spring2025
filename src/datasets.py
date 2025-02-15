@@ -2,17 +2,50 @@ import os
 import pickle
 
 import torch.utils.data.dataset
+from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 from torchvision.transforms import v2 as v2
 import torchvision.datasets as datasets
+
+from PIL import Image
 
 # I am adding a validation set here
 from sklearn.model_selection import train_test_split
 
 from src.utils import *
 from globals import *
+import zipfile
+import urllib.request
 
 # load in the dataset based on arg parameters
+
+class MnistRotDataset(Dataset):
+            
+            def __init__(self, mode, transform=None, extract_path = global_data_dir):
+                assert mode in ['train', 'test']
+                    
+                if mode == "train":
+                    file = os.path.join(extract_path, "mnist_all_rotation_normalized_float_train_valid.amat")
+                else:
+                    file = os.path.join(extract_path, "mnist_all_rotation_normalized_float_test.amat")
+                
+                self.transform = transform
+    
+                data = np.loadtxt(file, delimiter=' ')
+                    
+                self.images = data[:, :-1].reshape(-1, 28, 28).astype(np.float32)
+                self.labels = data[:, -1].astype(np.int64)
+                self.num_samples = len(self.labels)
+            
+            def __getitem__(self, index):
+                image, label = self.images[index], self.labels[index]
+                image = Image.fromarray(image)
+                if self.transform is not None:
+                    image = self.transform(image)
+                return image, label
+            
+            def __len__(self):
+                return len(self.labels)
 
 def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     # TODO: add in aumentations / group actions (or maybe those go in make transforms or something)
@@ -35,6 +68,15 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     if dataset_name == 'mnist':
         mean = [0.1307]
         std = [0.3081]
+    elif dataset_name == 'rotated_mnist':
+        mean = [0.1307]
+        std = [0.3081]
+        pad = transforms.Pad((0,0,1,1), fill = 0)
+        resize1 = transforms.Resize(87)
+        resize2 = transforms.Resize(29)
+        rotate = transforms.RandomRotation(180, interpolation=Image.BILINEAR, expand=False)
+        train_transforms = [pad, resize1, rotate, resize2]
+        test_transforms = [pad]
     elif greyscale:
         mean = [0.481]
         std = [0.239]
@@ -56,25 +98,49 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
         cifar100=datasets.CIFAR100,
         mnist=datasets.MNIST,
     ) 
-    standard_dataset = standard_datasets[dataset_name]
+    if dataset_name in standard_datasets:
+        standard_dataset = standard_datasets[dataset_name]
+        
+        def get_dataset(train : bool):
+            transform_list = train_transforms if train else test_transforms
+            dataparams=dict(
+                root= global_data_dir,
+                transform=transforms.Compose(transform_list+both_transforms),
+                train=train,
+                download=True,
+            )
 
-    def get_dataset(train : bool):
-        transform_list = train_transforms if train else test_transforms
-        dataparams=dict(
-            root= global_data_dir,
-            transform=transforms.Compose(transform_list+both_transforms),
-            train=train,
-            download=True,
-        )
+            dataset = standard_dataset(**dataparams)
+        
+            return dataset
 
-        dataset = standard_dataset(**dataparams)
-    
-        return dataset
-    
-    train_set = get_dataset(train=True)
+        train_set = get_dataset(train=True)
 
-    test_set = get_dataset(train=False)
+        test_set = get_dataset(train=False)
+        
+    elif dataset_name == "rotated_mnist":
+        # download the dataset
+        
+        """Dataset of rotated MNIST digits from http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_rotation_new.zip"""
 
+        """Augmentations taken from https://github.com/QUVA-Lab/e2cnn/blob/master/examples/model.ipynb"""
+
+        url = "http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_rotation_new.zip"
+        
+        zip_path = os.path.join(global_data_dir, "mnist_rotation_new.zip")
+        extract_path = os.path.join(global_data_dir, "mnist_rotation_new")
+
+        if not os.path.exists(zip_path):
+            urllib.request.urlretrieve(url, zip_path)
+
+        if not os.path.exists(extract_path):
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_path)
+
+        train_set = MnistRotDataset(mode = "train", transform=transforms.Compose(train_transforms+both_transforms),extract_path=extract_path)
+        test_set = MnistRotDataset(mode = "test", transform=transforms.Compose(test_transforms+both_transforms),extract_path=extract_path)
+    else:
+        raise ValueError(f"dataset {dataset_name} not supported")
     n_classes = 100 if dataset_name == "cifar100" else 10
 
     return train_set, test_set, n_classes
