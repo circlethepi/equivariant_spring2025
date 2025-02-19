@@ -1,3 +1,5 @@
+import wandb
+from src import build_models, datasets
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,6 +15,7 @@ from src.utils import *
 
 
 # training functionality for pre- and post- projection
+
 
 def train_model(model, train_loader, val_loader, #args, 
                 optimizer, criterion, device, epochs,
@@ -43,6 +46,10 @@ def train_model(model, train_loader, val_loader, #args,
         val_accuracies_1 = []
         val_accuracies_5 = []
         global_batch_counter = 0 # counter for batches processed
+        examples_seen = 0
+
+        wandb.watch(model, criterion, log='all', log_freq=10) # TODO: add arg to change
+
     
         for epoch in range(1, epochs+1):
 
@@ -58,6 +65,14 @@ def train_model(model, train_loader, val_loader, #args,
             print_and_write(message, logfile)
             
             # Train
+    
+
+        # Determine log-scaled batch intervals
+        total_batches = len(train_loader) * epochs
+        log_intervals = [int(math.pow(2, i)) for i in range(int(math.log2(total_batches)) + 1)]
+        wandb.watch(model, criterion, log='all', log_freq=10)
+
+        for epoch in range(epochs):
             model.train()
             train1 = AverageMeter('acc1')
             train5 = AverageMeter('acc5')
@@ -72,7 +87,7 @@ def train_model(model, train_loader, val_loader, #args,
                 loss.backward()
                 optimizer.step()
 
-                # update batch counter
+                examples_seen += labels.size(0)
                 global_batch_counter += 1
 
                 # running_loss += loss.item()
@@ -129,6 +144,7 @@ def train_model(model, train_loader, val_loader, #args,
         val_losses.append(val_loss)
         val_accuracies_1.append(val1)
         val_accuracies_5.append(val5)
+
         if save:
             save_model({
                     'epoch': epoch-1,
@@ -146,6 +162,19 @@ def train_model(model, train_loader, val_loader, #args,
         
         message = f'Final Val Loss: {val_loss:.4f}, acc@1: {val1:.2f}%, acc@5: {val5:.2f}%'
         print_and_write(message, logfile)
+        wandb.log({
+                    # 'epoch': epoch-1,
+                    # 'batch': global_batch_counter,
+                    # 'model_state_dict': model.state_dict(),
+                    # 'optimizer_state_dict': optimizer.state_dict(),
+                    # 'loss': running_loss / (global_batch_counter % len(train_loader)),
+                    'loss' : train_loss.avg,
+                    'train_accuracy_1': train1.avg,
+                    'train_accuracy_5': train5.avg,
+                    'val_loss': val_loss,
+                    'val_accuracy_1': val1,
+                    'val_accuracy_5': val5,
+                }, step=global_batch_counter)
         
         return train_losses, train_accuracies_1, train_accuracies_5, val_losses, val_accuracies_1, val_accuracies_5
 
@@ -180,6 +209,9 @@ def test_model(model, test_loader, criterion, device, topk=(1,), desc=None, prin
     outstrings = [f'Top {topk[k]}: {meters[k].avg:.2f}%' for k in range(len(meters))]
     if print_acc:
         print('\n'.join(outstrings))
+    
+    # outdict = dict(zip(topk, ))
+
 
     return [loss_meter.avg] + [meters[k].avg for k in range(len(meters))] 
 
@@ -241,7 +273,7 @@ def train(args, model, train_loader, val_loader, test_loader,
 
 ## build model from model builder
     # create log file
-## train for args.epochs (TODO: add to args)
+## train for config.epochs (TODO: add to config)
 ## log model states/ loss/ accuracy at nice batch checkpoints
 ## save model to disk
 
