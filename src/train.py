@@ -1,5 +1,5 @@
 import wandb
-from src import build_models, datasets
+from src import build_models, datasets, utils
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -16,6 +16,8 @@ def train_log(loss, examples_seen, epoch):
     print(f'Epoch {epoch}, Examples seen: {examples_seen}, Loss: {loss:.4f}')
 
 def train_model(config, model, train_loader, val_loader, optimizer, criterion, device):
+        
+        utils.set_seed(config.seed)
 
         #add option to save model states and loss/accuracy at nice batch checkpoints
 
@@ -125,6 +127,8 @@ def train_model(config, model, train_loader, val_loader, optimizer, criterion, d
         return train_losses, train_accuracies, val_accuracies
 
 def test_model(model, test_loader, device):
+
+    utils.set_seed(config.seed)
      # Test accuracy
     model.eval()
     correct = 0
@@ -160,9 +164,9 @@ def train(config, model, train_loader, val_loader, test_loader, criterion, optim
     train_losses, train_accuracies, val_accuracies = train_model(config, model, train_loader, val_loader, optimizer, criterion, device)
     
     # test model
-    test_accuracy = test_model(model, test_loader, device)
+    #test_accuracy = test_model(model, test_loader, device)
 
-    return train_losses, train_accuracies, val_accuracies, test_accuracy
+    return train_losses, train_accuracies, val_accuracies
 
 ## build model from model builder
     # create log file
