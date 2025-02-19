@@ -42,17 +42,19 @@ def train_model(model, train_loader, val_loader, #args,
         val_losses = []
         val_accuracies_1 = []
         val_accuracies_5 = []
-        glboal_batch_counter = 0 # counter for batches processed
+        global_batch_counter = 0 # counter for batches processed
     
         for epoch in range(1, epochs+1):
 
             # Validation 
-            val_loss, val1, val5 = test_model(model, val_loader, device, topk=(1,5,), desc=f'Val epoch {epoch-1}')
+            val_loss, val1, val5 = test_model(model, val_loader, criterion, 
+                                              device, topk=(1,5,), 
+                                              desc=f'Val epoch {epoch-1}/{epochs}')
             val_losses.append(val_loss)
             val_accuracies_1.append(val1)
             val_accuracies_5.append(val5)
 
-            message = f'val epoch {epoch-1}/{epochs}\nVal Loss: {val_loss}, val@1: {val1:.2f}%, val@5: {val5:.2f}%'
+            message = f'Val Loss: {val_loss:.4f}, acc@1: {val1:.2f}%, acc@5: {val5:.2f}%'
             print_and_write(message, logfile)
             
             # Train
@@ -61,7 +63,7 @@ def train_model(model, train_loader, val_loader, #args,
             train5 = AverageMeter('acc5')
             train_loss = AverageMeter('loss')
 
-            for inputs, labels in tqdm(train_loader, desc=f'Train epoch {epoch}'):
+            for inputs, labels in tqdm(train_loader, desc=f'Train epoch {epoch}/{epochs}'):
                 inputs, labels = inputs.to(device), labels.to(device)
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
@@ -76,8 +78,8 @@ def train_model(model, train_loader, val_loader, #args,
                 # running_loss += loss.item()
                 train_loss.update(loss.item(), outputs.size(0))
                 train_acc1, train_acc5 = accuracy(outputs, labels, topk=(1,5))
-                train1.update(train_acc1[0], outputs.size(0))
-                train5.update(train_acc5[0], outputs.size(0))
+                train1.update(train_acc1, outputs.size(0))
+                train5.update(train_acc5, outputs.size(0))
 
 
                 # Save checkpoint if required
@@ -93,7 +95,7 @@ def train_model(model, train_loader, val_loader, #args,
                         'val_loss': val_loss,
                         'val_accuracy_1': val1,
                         'val_accuracy_5': val5, # val accs from epoch (epoch-1)
-                    }, glboal_batch_counter, checkpoint_type, checkpoint_path)
+                    }, global_batch_counter, checkpoint_type, checkpoint_path)
                 
                     # print_and_write(f'Saved checkpoint at batch {global_batch_counter}')
 
@@ -119,11 +121,11 @@ def train_model(model, train_loader, val_loader, #args,
                     'val_accuracy_5': val5,
                 }, epoch-1, checkpoint_type, checkpoint_path)
             
-            message = f'train epoch {epoch}/{epochs}\nLoss: {train_loss.avg:.4f}, train@1: {train1.avg:.2f}%, train@5: {train5.avg:.2f}%'
+            message = f'Train Loss: {train_loss.avg:.4f}, acc@1: {train1.avg:.2f}%, acc@5: {train5.avg:.2f}%'
             print_and_write(message, logfile)
 
         # end of training val and save if applicable
-        val_loss, val1, val5 = test_model(model, val_loader, device, topk=(1,5,), desc=f'Val epoch {epoch-1}')
+        val_loss, val1, val5 = test_model(model, val_loader, criterion, device, topk=(1,5,), desc=f'Val epoch {epoch-1}')
         val_losses.append(val_loss)
         val_accuracies_1.append(val1)
         val_accuracies_5.append(val5)
@@ -142,7 +144,7 @@ def train_model(model, train_loader, val_loader, #args,
                     'val_accuracy_5': val5,
                 }, epoch-1, checkpoint_type, checkpoint_path, force=True)
         
-        message = f'final val epoch {epoch-1}/{epochs}\nVal Loss: {val_loss}, val@1: {val1:.2f}%, val@5: {val5:.2f}%'
+        message = f'Final Val Loss: {val_loss:.4f}, acc@1: {val1:.2f}%, acc@5: {val5:.2f}%'
         print_and_write(message, logfile)
         
         return train_losses, train_accuracies_1, train_accuracies_5, val_losses, val_accuracies_1, val_accuracies_5
@@ -169,12 +171,13 @@ def test_model(model, test_loader, criterion, device, topk=(1,), desc=None, prin
             outputs = model(inputs)
 
             accs = accuracy(outputs, labels, topk)
-            for k in range(len(topk)):
-                meters[k].update(accs[k][0], outputs.size(0))
+            # print(accs)
+            for k in range(len(meters)):
+                meters[k].update(accs[k], outputs.size(0))
             
             loss_meter.update(criterion(outputs, labels).item(), outputs.size(0))
 
-    outstrings = [f'Top {topk[k]}: {meters[k].avg:.2f}%' for k in range(len(topk))]
+    outstrings = [f'Top {topk[k]}: {meters[k].avg:.2f}%' for k in range(len(meters))]
     if print_acc:
         print('\n'.join(outstrings))
 
@@ -193,47 +196,15 @@ def accuracy(output, target, topk=(1,)):
     res = []
     for k in topk:
         correct_k = correct[:k].reshape(-1).float().sum(0)
-        res.append(correct_k.mul(100.0/batch_size))
+        res.append(correct_k.mul(100.0/batch_size).item())
 
     return res
-
-     
-
-def parse_checkpoint_log_info(args):
-    basic_train_info = f'{args.dataset}_batchsize{args.batch_size}'
-    model_savename = build.get_model_savename(args)
-
-    model_savedir = os.path.join(args.save_path, model_savename)
-    checkpoint_filename = f'{basic_train_info}.pth.tar'
-    checkpoint_type = "epoch" if args.save_epoch else "batch"
-    
-    if not os.path.exists(model_savedir):
-        os.makedirs(model_savedir)
-
-    # TODO: train loop take in this file, replace extension to include
-    # batch number, then save model state dict to the file
-    model_savefilename = os.path.join(model_savedir, checkpoint_filename)
-
-    # logging configuration
-    log_savedir = os.path.join(args.log_path, model_savename)
-    if not os.path.exists(log_savedir):
-        os.makedirs(log_savedir)
-    logfile = make_logfile(os.path_join(log_savedir, f'{basic_train_info}.log'))
-
-    # save commandline entry to log
-    with open(os.path.join(model_savedir, 'args.json'), 'w') as file:
-        json.dump(args.__dict__, file, indent=2, default=str) 
-    print_and_write(f"Command line: {' '.join(sys.argv)}", logfile)
-
-    return model_savefilename, checkpoint_type, logfile
 
 
 
 # train: take in args
-def train(args, model, train_loader, val_loader, test_loader):
-
-    # get checkpoint info
-    model_savefilename, checkpoint_type, logfile = parse_checkpoint_log_info(args)
+def train(args, model, train_loader, val_loader, test_loader, 
+          model_savefilename, checkpoint_type, logfile):
 
     # get optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr) if \
@@ -261,7 +232,7 @@ def train(args, model, train_loader, val_loader, test_loader):
     # test model
     test_loss, test_1, test_5 = test_model(model, test_loader, criterion, device, topk=(1, 5),
                                            desc='Final Test')
-    message = f'Test @{args.epochs}\nLoss: {test_loss}, test@1: {test_1:.2f}%, test@5: {test_5:.2f}%'
+    message = f'Test after {args.epochs} epochs\nLoss: {test_loss:.4f}, acc@1: {test_1:.2f}%, acc@5: {test_5:.2f}%'
     print_and_write(message, logfile)
 
     close_files(logfile)

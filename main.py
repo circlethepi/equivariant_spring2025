@@ -176,17 +176,22 @@ def do_code(args):
     #     json.dump(args.__dict__, file, indent=2, default=str) 
     # print_and_write(f"Command line: {' '.join(sys.argv)}", logfile)
 
+    # get checkpoint info
+    model_savefilename, checkpoint_type, logfile = build.parse_checkpoint_log_info(args)
 
     # load datasets
-    train_loader, val_loader, test_loader = datasets.get_dataloaders(args)
+    train_loader, val_loader, test_loader = datasets.get_dataloaders(args, 
+                                                            logfile=logfile)
     
     # build/load model
     model = build.build_model_from_args(args)
 
     # train model
-    loss_accs = train.train(args, model, train_loader, val_loader, test_loader)
+    loss_accs = train.train(args, model, train_loader, val_loader, test_loader,
+                            model_savefilename, checkpoint_type, logfile)
 
     return loss_accs
+
 
 # running
 main()

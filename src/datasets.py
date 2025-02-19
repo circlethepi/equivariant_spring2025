@@ -40,7 +40,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
             #added a grayscale or RGB transform
-            transforms.Grayscale() if greyscale else transforms.v2.RGB()
+            transforms.Grayscale() if (greyscale or dataset_name == 'mnist') else transforms.v2.RGB()
         ])
     standard_datasets = dict(
         cifar10=datasets.CIFAR10,
@@ -93,11 +93,11 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
 
     if log:
         assert logfile is not None
-        assert summaryfile is not None
+        # assert summaryfile is not None
         dataset_message = f'using dataset {dataset_name}'
-        print_and_write(dataset_message, logfile, summaryfile)
+        print_and_write(dataset_message, logfile)
 
-    train_set, test_set, n_classes = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
+    train_set, test_set = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
     
     #train_set, test_set = additional_transforms(train_set, test_set, transforms= None)
     #Adding a validation set
