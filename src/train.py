@@ -1,5 +1,5 @@
 import wandb
-from src import build_models, datasets
+from src import build_models, datasets, utils
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -189,6 +189,7 @@ def save_model(save_state, interval, checkpoint_type, checkpoint_path, force=Fal
 
 
 def test_model(model, test_loader, criterion, device, topk=(1,), desc=None, print_acc=False):
+
      # Test accuracy
     meters = [AverageMeter(name=f'acc{k}') for k in topk]
     loss_meter = AverageMeter(name='loss')
