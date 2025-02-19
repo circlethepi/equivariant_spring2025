@@ -116,7 +116,6 @@ class CustomClassifier(nn.Module):
         return self.classifier_layers(x)
 
 
-
 class EquivariantProjectionLayer(nn.Module):
     """
     Custom projection layer that projects previous layer weights into 

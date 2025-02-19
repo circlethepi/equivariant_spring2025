@@ -152,7 +152,6 @@ def get_dataloader(dataset, batch_size, shuffle):
     return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4, pin_memory=True)
 
 
-
 def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
     """get train and val dataloaders from args
     
