@@ -22,15 +22,6 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     test_transforms = []
     both_transforms = []
 
-    # if dataset_name == "mnist":
-    #     if image_size is None:
-    #         image_size = 28
-    
-    # elif dataset_name == "cifar":
-    #     if image_size is None:
-    #         image_size = 32
-    # TODO: move input image size calculation in module builder
-
     # Normalization 
     if dataset_name == 'mnist':
         mean = [0.1307]
@@ -49,7 +40,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
             #added a grayscale or RGB transform
-            transforms.Grayscale() if greyscale else transforms.v2.RGB()
+            transforms.Grayscale() if (greyscale or dataset_name == 'mnist') else transforms.v2.RGB()
         ])
     standard_datasets = dict(
         cifar10=datasets.CIFAR10,
@@ -75,9 +66,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
 
     test_set = get_dataset(train=False)
 
-    n_classes = 100 if dataset_name == "cifar100" else 10
-
-    return train_set, test_set, n_classes
+    return train_set, test_set
 
 
 
@@ -94,6 +83,7 @@ def get_dataloader(dataset, batch_size, shuffle):
     return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4, pin_memory=True)
 
 
+
 def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
     """get train and val dataloaders from args
     
@@ -103,25 +93,23 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
 
     if log:
         assert logfile is not None
-        assert summaryfile is not None
+        # assert summaryfile is not None
         dataset_message = f'using dataset {dataset_name}'
-        print_and_write(dataset_message, logfile, summaryfile)
+        print_and_write(dataset_message, logfile)
 
-    train_set, test_set, n_classes = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
+    train_set, test_set = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
     
     #train_set, test_set = additional_transforms(train_set, test_set, transforms= None)
-
     #Adding a validation set
     train_set, val_set = train_test_split(train_set, test_size=0.2, random_state=args.seed)
-
     train_loader = get_dataloader(train_set, args.batch_size, shuffle=True)
 
     #Added a val loader
     val_loader = get_dataloader(val_set, args.batch_size, shuffle=False)
-
     test_loader = get_dataloader(test_set, args.batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader
+
 
 
 # getting dataloaders for notebook environment / testing

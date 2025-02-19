@@ -34,21 +34,22 @@ class ModelBuilder:
         else:
             return nn.Sequential(*self.layers)
     
+    
 
 class CustomModel(nn.Module):
     """segments a custom model"""
 
     def __init__(self, features:nn.Module, classifier:nn.Module, 
-                 avgpool:bool=True, avgpool_size=(1,1)):
+                 avgpool: Union[nn.Module, None]):
         """container for custom models"""
         super().__init__()
 
         self.features = features
 
-        self.do_avgpool = avgpool
-        self.avgpool_size = avgpool_size
-        if self.do_avgpool:
-            self.avgpool = nn.AdaptiveAvgPool2d(self.avgpool_size)
+        self.do_avgpool = False
+        if avgpool is not None:
+            self.avgpool = avgpool
+            self.do_avgpool = True
 
         self.classifier = classifier
 
@@ -113,6 +114,7 @@ class CustomClassifier(nn.Module):
     
     def forward(self, x):
         return self.classifier_layers(x)
+
 
 
 class EquivariantProjectionLayer(nn.Module):
