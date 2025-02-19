@@ -29,10 +29,11 @@ def build_model(vgg_layers=['64', 'M', '64', 'M'],
                                      avgpool=avgpool,
                                      avgpool_size=avgpool_size,
                                      dataset=dataset,
-                                     greyscale=greyscale)
-    n_classes = 100 if dataset == "cifar100" else 10
+                                     greyscale=greyscale,
+                                     n_classes = 100 if dataset == "cifar100" else 10)
+    
 
     # feed to builder
-    model = build.build_model_from_args(custom_args, n_classes)
+    model = build.build_model_from_args(custom_args)
     
     return model

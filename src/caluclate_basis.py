@@ -48,11 +48,4 @@ def make_matrix_basis(mat):
 
     return basis
 
-# option 1: group averaging over the weights/function itself
-# (what Wilson has done before)
-
-
-# option 2: caluculating equivariant basis, then learning weights to project
-# the model into the equivariant basis
-
 

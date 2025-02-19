@@ -2,3 +2,7 @@ notebooks/*
 *.egg -info
 results/model_library/*
 data/*
+checkpoints/*
+src.egg-info/*
+src/__pycache__/*
+wandb/*

@@ -2,37 +2,80 @@ import os
 import pickle
 
 import torch.utils.data.dataset
+from torch.utils.data import Dataset
 import torchvision.transforms as transforms
+from torchvision.transforms import v2 as v2
 import torchvision.datasets as datasets
+
+from PIL import Image
+
+# I am adding a validation set here
+from sklearn.model_selection import train_test_split
 
 from src.utils import *
 from globals import *
+import zipfile
+import urllib.request
 
 # load in the dataset based on arg parameters
+
+class MnistRotDataset(Dataset):
+            
+            def __init__(self, mode, transform=None, extract_path=global_data_dir):
+                assert mode in ['train', 'test']
+                    
+                if mode == "train":
+                    file = os.path.join(extract_path, "mnist_all_rotation_normalized_float_train_valid.amat")
+                else:
+                    file = os.path.join(extract_path, "mnist_all_rotation_normalized_float_test.amat")
+                
+                self.transform = transform
+    
+                data = np.loadtxt(file, delimiter=' ')
+                    
+                self.images = data[:, :-1].reshape(-1, 28, 28).astype(np.float32)
+                self.labels = data[:, -1].astype(np.int64)
+                self.num_samples = len(self.labels)
+            
+            def __getitem__(self, index):
+                image, label = self.images[index], self.labels[index]
+                image = Image.fromarray(image)
+                if self.transform is not None:
+                    image = self.transform(image)
+                return image, label
+            
+            def __len__(self):
+                return len(self.labels)
+            
 
 def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     # TODO: add in aumentations / group actions (or maybe those go in make transforms or something)
     """get train and val datasets from params"""
+
     train_transforms = []
     test_transforms = []
     both_transforms = []
-
-    # if dataset_name == "mnist":
-    #     if image_size is None:
-    #         image_size = 28
-    
-    # elif dataset_name == "cifar":
-    #     if image_size is None:
-    #         image_size = 32   
-    # TODO: move input image size calculation in module builder
 
     # Normalization 
     if dataset_name == 'mnist':
         mean = [0.1307]
         std = [0.3081]
+        pad = transforms.Pad((0,0,1,1), fill = 0)
+        #train_transforms = [pad]
+        #test_transforms = [pad]
+    elif dataset_name == 'rotated_mnist':
+        mean = [0.1307]
+        std = [0.3081]
+        pad = transforms.Pad((0,0,1,1), fill = 0)
+        resize1 = transforms.Resize(87)
+        resize2 = transforms.Resize(29)
+        rotate = transforms.RandomRotation(180, interpolation=Image.BILINEAR, expand=False)
+        train_transforms = [pad, resize1, rotate, resize2]
+        test_transforms = [pad]
     elif greyscale:
         mean = [0.481]
         std = [0.239]
+        #Reduce channels to 1
         both_transforms.append(transforms.Grayscale())
     else:
         # mean = [0.485, 0.456, 0.406]
@@ -41,35 +84,58 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
         std = [0.5, 0.5, 0.5]
     both_transforms.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)
+            transforms.Normalize(mean=mean, std=std),
+            #added a grayscale or RGB transform
+            transforms.Grayscale() if (greyscale or dataset_name == 'mnist') else transforms.v2.RGB()
         ])
-    
     standard_datasets = dict(
         cifar10=datasets.CIFAR10,
         cifar100=datasets.CIFAR100,
         mnist=datasets.MNIST,
     ) 
-    standard_dataset = standard_datasets[dataset_name]
+    if dataset_name in standard_datasets:
+        standard_dataset = standard_datasets[dataset_name]
+        
+        def get_dataset(train : bool):
+            transform_list = train_transforms if train else test_transforms
+            dataparams=dict(
+                root= global_data_dir,
+                transform=transforms.Compose(transform_list+both_transforms),
+                train=train,
+                download=True,
+            )
 
-    def get_dataset(train : bool):
-        transform_list = train_transforms if train else test_transforms
-        dataparams=dict(
-            root= global_data_dir,
-            transform=transforms.Compose(transform_list+both_transforms),
-            train=train,
-            download=True,
-        )
+            dataset = standard_dataset(**dataparams)
+        
+            return dataset
 
-        dataset = standard_dataset(**dataparams)
-    
-        return dataset
-    
-    train_set = get_dataset(train=True)
-    test_set = get_dataset(train=False)
+        train_set = get_dataset(train=True)
+        test_set = get_dataset(train=False)
+        
+    elif dataset_name == "rotated_mnist":
+        # download the dataset
+        """Dataset of rotated MNIST digits from http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_rotation_new.zip"""
+        """Augmentations taken from https://github.com/QUVA-Lab/e2cnn/blob/master/examples/model.ipynb"""
 
-    n_classes = 100 if dataset_name == "cifar100" else 10
+        url = "http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_rotation_new.zip"
+        
+        zip_path = os.path.join(global_data_dir, "mnist_rotation_new.zip")
+        extract_path = os.path.join(global_data_dir, "mnist_rotation_new")
 
-    return train_set, test_set, n_classes
+        if not os.path.exists(zip_path):
+            urllib.request.urlretrieve(url, zip_path)
+
+        if not os.path.exists(extract_path):
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_path)
+
+        train_set = MnistRotDataset(mode = "train", transform=transforms.Compose(train_transforms+both_transforms),extract_path=extract_path)
+        test_set = MnistRotDataset(mode = "test", transform=transforms.Compose(test_transforms+both_transforms),extract_path=extract_path)
+    else:
+        raise ValueError(f"dataset {dataset_name} not supported")
+
+    return train_set, test_set
+
 
 
 
@@ -95,24 +161,39 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
 
     if log:
         assert logfile is not None
-        assert summaryfile is not None
+        # assert summaryfile is not None
         dataset_message = f'using dataset {dataset_name}'
-        print_and_write(dataset_message, logfile, summaryfile)
+        print_and_write(dataset_message, logfile)
 
-    train_set, test_set, n_classes = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
-    train_set, test_set = additional_transforms(train_set, test_set)
-
+    train_set, test_set = get_datasets(dataset_name=dataset_name, greyscale=args.greyscale)
+    
+    #train_set, test_set = additional_transforms(train_set, test_set, transforms= None)
+    #Adding a validation set
+    train_set, val_set = train_test_split(train_set, test_size=0.2, random_state=args.seed)
     train_loader = get_dataloader(train_set, args.batch_size, shuffle=True)
+
+    #Added a val loader
+    val_loader = get_dataloader(val_set, args.batch_size, shuffle=False)
     test_loader = get_dataloader(test_set, args.batch_size, shuffle=False)
 
-    return train_loader, test_loader
+    return train_loader, val_loader, test_loader
+
 
 
 # getting dataloaders for notebook environment / testing
 def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False):
     train_set, test_set, _ = get_datasets(dataset_name=dataset_name, greyscale=greyscale)
+    
+    #Adding a validation set
+
+    train_set, val_set = train_test_split(train_set, test_size=0.2, random_state=42)
+
     train_load = get_dataloader(train_set, batch_size=batch_size, shuffle=True)
+
+    #Added a val loader
+    val_load = get_dataloader(val_set, batch_size=batch_size, shuffle=False)
+
     test_load = get_dataloader(test_set, batch_size=batch_size, shuffle=False)
     
-    return train_load, test_load
+    return train_load, val_load, test_load
 
