@@ -60,7 +60,7 @@ def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
     if dataset_name == 'mnist':
         mean = [0.1307]
         std = [0.3081]
-        pad = transforms.Pad((0,0,1,1), fill = 0)
+        # pad = transforms.Pad((0,0,1,1), fill = 0)
         #train_transforms = [pad]
         #test_transforms = [pad]
     elif dataset_name == 'rotated_mnist':
