@@ -54,7 +54,7 @@ def train_model(model, train_loader, val_loader, #args,
         for epoch in range(1, epochs+1):
 
             # Validation 
-            val_loss, val1, val5 = test_model(model, val_loader, criterion, 
+            val_loss, val1, val5 = evaluate_model_loss(model, val_loader, criterion, 
                                               device, topk=(1,5,), 
                                               desc=f'Val epoch {epoch-1}/{epochs}')
             val_losses.append(val_loss)
@@ -98,7 +98,7 @@ def train_model(model, train_loader, val_loader, #args,
 
 
                 # Save checkpoint if required
-                if save and checkpoint_type == "batch":
+                if save and checkpoint_type == "batch" and nice_interval(global_batch_counter):
                     save_model({
                         'epoch': epoch,
                         'batch': global_batch_counter,
@@ -121,7 +121,7 @@ def train_model(model, train_loader, val_loader, #args,
             train_accuracies_5.append(train5.avg)
 
             # epoch save
-            if save and checkpoint_type=='epoch':
+            if save and checkpoint_type=='epoch' and nice_interval(epoch-1):
                 save_model({
                     'epoch': epoch-1,
                     'batch': global_batch_counter,
@@ -140,7 +140,7 @@ def train_model(model, train_loader, val_loader, #args,
             print_and_write(message, logfile)
 
         # end of training val and save if applicable
-        val_loss, val1, val5 = test_model(model, val_loader, criterion, device, topk=(1,5,), desc=f'Val epoch {epoch-1}')
+        val_loss, val1, val5 = evaluate_model_loss(model, val_loader, criterion, device, topk=(1,5,), desc=f'Val epoch {epoch-1}')
         val_losses.append(val_loss)
         val_accuracies_1.append(val1)
         val_accuracies_5.append(val5)
@@ -179,16 +179,21 @@ def train_model(model, train_loader, val_loader, #args,
         return train_losses, train_accuracies_1, train_accuracies_5, val_losses, val_accuracies_1, val_accuracies_5
 
 
-def save_model(save_state, interval, checkpoint_type, checkpoint_path, force=False):
-    if nice_interval(interval) or interval == 0 or force:
-        if checkpoint_type == "batch":
-            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_batch{interval}.pth.tar'))
-        elif checkpoint_type == "epoch":
-            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar'))
+def save_model(save_state, interval, checkpoint_type, checkpoint_path, wandb_log=False):
+    if checkpoint_type == "batch":
+        torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_batch{interval}.pth.tar'))
+    elif checkpoint_type == "epoch":
+        torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar'))
+    
+    if wandb_log:
+        
+        pass
 
 
 
-def test_model(model, test_loader, criterion, device, topk=(1,), desc=None, print_acc=False):
+def evaluate_model_loss(model, test_loader, criterion, device, topk=(1,), desc=None, 
+                    print_acc=False, wandb_log=False, loader_name='test', 
+                    step=None):
 
      # Test accuracy
     meters = [AverageMeter(name=f'acc{k}') for k in topk]
@@ -210,11 +215,45 @@ def test_model(model, test_loader, criterion, device, topk=(1,), desc=None, prin
     outstrings = [f'Top {topk[k]}: {meters[k].avg:.2f}%' for k in range(len(meters))]
     if print_acc:
         print('\n'.join(outstrings))
+
+    vals = [loss_meter.avg] + [met.avg for met in meters]
+    if wandb_log:
+        keys = [f'{loader_name}_loss']+[f'{loader_name}_accuracy_{k}' for k in topk]
+        logdict = dict(zip(keys, vals))
+        wandb.log(logdict, step=step)
+
+    return vals
+
     
-    # outdict = dict(zip(topk, ))
+def evaluate_model(model, test_loader, device, topk=(1,), step=None, desc=None, 
+               print_acc=False, wandb_log=False, loader_name='test'):
 
+    meters = [AverageMeter(name=f'acc{k}') for k in topk]
+    model.eval()
 
-    return [loss_meter.avg] + [meters[k].avg for k in range(len(meters))] 
+    with torch.no_grad():
+        for inputs, labels in tqdm(test_loader, desc=desc):
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+
+            accs = accuracy(outputs, labels, topk)
+            # print(accs)
+            for k in range(len(meters)):
+                meters[k].update(accs[k], outputs.size(0))
+    
+    outstrings = [f'Top {topk[k]}: {meters[k].avg:.2f}%' for k in range(len(meters))]
+
+    if print_acc:
+        print('\n'.join(outstrings))
+    
+    vals = [met.avg for met in meters]
+    if wandb_log:
+        keys = [f'{loader_name}_accuracy_{k}' for k in topk]
+        
+        logdict = dict(zip(keys, vals))
+        wandb.log(logdict, step=step)
+
+    return vals
 
 
 def accuracy(output, target, topk=(1,)):
@@ -263,8 +302,10 @@ def train(args, model, train_loader, val_loader, test_loader,
                 checkpoint_path=model_savefilename, save=args.save_model)
     
     # test model
-    test_loss, test_1, test_5 = test_model(model, test_loader, criterion, device, topk=(1, 5),
-                                           desc='Final Test')
+    test_loss, test_1, test_5 = evaluate_model_loss(model, test_loader, 
+                            criterion, device, topk=(1, 5), desc='Final Test', 
+                            wandb_log=True, loader_name='test')
+    
     message = f'Test after {args.epochs} epochs\nLoss: {test_loss:.4f}, acc@1: {test_1:.2f}%, acc@5: {test_5:.2f}%'
     print_and_write(message, logfile)
 
@@ -272,10 +313,5 @@ def train(args, model, train_loader, val_loader, test_loader,
 
     return train_losses, train_1, train_5, val_losses, val_1, val_5, test_loss, test_1, test_5
 
-## build model from model builder
-    # create log file
-## train for config.epochs (TODO: add to config)
-## log model states/ loss/ accuracy at nice batch checkpoints
-## save model to disk
 
 

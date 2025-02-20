@@ -151,38 +151,13 @@ def main():
 def do_code(args):
 
     # create saving/checkpoint configuration
-    # basic_train_info = f'{args.dataset}_batchsize{args.batch_size}'
-    # model_savename = build.get_model_savename(args)
-
-    # model_savedir = os.path.join(args.save_path, model_savename)
-    # checkpoint_filename = f'{basic_train_info}.pth.tar'
-    # checkpoint_type = "epoch" if args.save_epoch else "batch"
-    
-    # if not os.path.exists(model_savedir):
-    #     os.makedirs(model_savedir)
-
-    # # TODO: train loop take in this file, replace extension to include
-    # # batch number, then save model state dict to the file
-    # model_savefilename = os.path.join(model_savedir, checkpoint_filename)
-
-    # # logging configuration
-    # log_savedir = os.path.join(args.log_path, model_savename)
-    # if not os.path.exists(log_savedir):
-    #     os.makedirs(log_savedir)
-    # logfile = make_logfile(os.path_join(log_savedir, f'{basic_train_info}.log'))
-
-    # # save commandline entry to log
-    # with open(os.path.join(model_savedir, 'args.json'), 'w') as file:
-    #     json.dump(args.__dict__, file, indent=2, default=str) 
-    # print_and_write(f"Command line: {' '.join(sys.argv)}", logfile)
-
     # get checkpoint info
     model_savefilename, checkpoint_type, logfile = build.parse_checkpoint_log_info(args)
 
     # load datasets
     train_loader, val_loader, test_loader = datasets.get_dataloaders(args, 
                                                             logfile=logfile)
-    
+
     # build/load model
     model = build.build_model_from_args(args)
 

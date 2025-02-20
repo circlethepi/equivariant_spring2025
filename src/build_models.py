@@ -18,7 +18,7 @@ def get_input_dimensions(args):
     """get dataset dimensions (number of channels) and input image dimensions
     from args dataset information
     """
-    if args.dataset == "mnist":
+    if args.dataset.startswith("mnist"):
         channels_in = 1
     else:
         channels_in = 3
@@ -61,6 +61,9 @@ def build_model_from_args(args):
     """build custom vgg-type architecture from arguments
 
     """
+    # set seed
+    set_seed(args.seed)
+
     custom_blocks = ModelBuilder()
 
     input_channels, image_size, n_classes = get_input_dimensions(args)
@@ -239,14 +242,4 @@ def parse_checkpoint_log_info(args):
         json.dump(args.__dict__, file, indent=2, default=str) 
     print_and_write(f"Command line: {' '.join(sys.argv)}", logfile)
 
-    return model_savefilename, checkpoint_type, logfile
-
-
-#Removed this function since we may want to use something else
-#def get_input_channels(args):
- #   if "mnist" in args.dataset or args.greyscale:
-   #     return 1
-    #else:
-     #   return 3
-    
-# loading then adding in projection layers after a model is trained
+    return model_savefilename, model_savedir, checkpoint_type, logfile

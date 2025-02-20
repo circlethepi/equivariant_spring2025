@@ -48,7 +48,7 @@ class MnistRotDataset(Dataset):
                 return len(self.labels)
             
 
-def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
+def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
     # TODO: add in aumentations / group actions (or maybe those go in make transforms or something)
     """get train and val datasets from params"""
 
@@ -60,7 +60,7 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     if dataset_name == 'mnist':
         mean = [0.1307]
         std = [0.3081]
-        pad = transforms.Pad((0,0,1,1), fill = 0)
+        # pad = transforms.Pad((0,0,1,1), fill = 0)
         #train_transforms = [pad]
         #test_transforms = [pad]
     elif dataset_name == 'rotated_mnist':
@@ -85,9 +85,9 @@ def get_datasets(dataset_name: str, greyscale: bool, image_size=None):
     both_transforms.extend([
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
-            #added a grayscale or RGB transform
-            transforms.Grayscale() if (greyscale or dataset_name == 'mnist') else transforms.v2.RGB()
         ])
+    if greyscale:
+        both_transforms.append(transforms.Grayscale())
     standard_datasets = dict(
         cifar10=datasets.CIFAR10,
         cifar100=datasets.CIFAR100,
@@ -182,7 +182,8 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
 
 # getting dataloaders for notebook environment / testing
 def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False):
-    train_set, test_set, _ = get_datasets(dataset_name=dataset_name, greyscale=greyscale)
+    train_set, test_set = get_datasets(dataset_name=dataset_name, 
+                                          greyscale=greyscale)
     
     #Adding a validation set
 
