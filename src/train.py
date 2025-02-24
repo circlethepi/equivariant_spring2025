@@ -52,7 +52,6 @@ def train_model(model, train_loader, val_loader, #args,
 
     
         for epoch in range(1, epochs+1):
-
             # Validation 
             val_loss, val1, val5 = evaluate_model_loss(model, val_loader, criterion, 
                                               device, topk=(1,5,), 
@@ -64,15 +63,7 @@ def train_model(model, train_loader, val_loader, #args,
             message = f'Val Loss: {val_loss:.4f}, acc@1: {val1:.2f}%, acc@5: {val5:.2f}%'
             print_and_write(message, logfile)
             
-            # Train
-    
-
-        # Determine log-scaled batch intervals
-        total_batches = len(train_loader) * epochs
-        log_intervals = [int(math.pow(2, i)) for i in range(int(math.log2(total_batches)) + 1)]
-        wandb.watch(model, criterion, log='all', log_freq=10)
-
-        for epoch in range(epochs):
+            # Training
             model.train()
             train1 = AverageMeter('acc1')
             train5 = AverageMeter('acc5')
@@ -186,7 +177,7 @@ def save_model(save_state, interval, checkpoint_type, checkpoint_path, wandb_log
         torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar'))
     
     if wandb_log:
-        
+        # TODO: add logging here if we want it
         pass
 
 
