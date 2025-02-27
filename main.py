@@ -13,6 +13,8 @@ import torch.backends.cudnn as cudnn
 import random
 import json
 
+import wandb
+
 from src.utils import *
 from globals import *
 
@@ -79,7 +81,7 @@ def build_parser():
                         help='loss function to use (default: CrossEntropyLoss)')
     # epoch, random seed, batch size, optimizer, learning rate, momentum, weight decay, scheduler, loss function, early stopping, etc.
 
-    # scheduler parameters
+    # scheduler parameters # not currently implemented
     parser.add_argument('--scheduler', type=str, default='StepLR', 
                         help='scheduler to use (default: StepLR)')
     parser.add_argument('--step-size', type=int, default=30,
@@ -87,7 +89,7 @@ def build_parser():
     parser.add_argument('--gamma', type=float, default=0.1,
                         help='gamma for the scheduler (default: 0.1)')
     
-    # early stopping parameters
+    # early stopping parameters # not currently implemented
     parser.add_argument('--early-stopping', action='store_true',
                         help='use early stopping')
     parser.add_argument('--patience', type=int, default=10,
@@ -115,8 +117,11 @@ def build_parser():
     parser.add_argument('--custom-name', type=str, help='custom save name')
     naming_choices = ['custom', 'default', 'both']
     parser.add_argument('--name-convention', type=str, choices=naming_choices,
-                        help='how to name the model dir')
+                        help='how to name the model dir', default='default')
+    # wandb logging
+    parser.add_argument('--wandb-proj', type=str, help='wandb project name')
     
+
     # model checkpoint paramters
     parser.add_argument('--save-epoch', action='store_true',
                         help='save by epoch (default: save at batch counts of form [1,2,5]eK )')
@@ -136,8 +141,17 @@ def get_args(*args_to_parser):
     """preprocessing args"""
     args = parser.parse_args(*args_to_parser)
 
+    # set seed
     if args.seed is not None:
         set_seed(args.seed)
+    
+    # set up wandb logging
+    if args.wandb_proj is not None:
+        wandb.init(
+            project = args.wandb_proj,
+            config = args,
+            name=build.get_model_savename(args)
+        )
 
     return args
 
@@ -152,7 +166,8 @@ def do_code(args):
 
     # create saving/checkpoint configuration
     # get checkpoint info
-    model_savefilename, checkpoint_type, logfile = build.parse_checkpoint_log_info(args)
+    model_savefilename, checkpoint_type, logfile, summaryfile = \
+        build.parse_checkpoint_log_info(args)
 
     # load datasets
     train_loader, val_loader, test_loader = datasets.get_dataloaders(args, 
@@ -163,7 +178,11 @@ def do_code(args):
 
     # train model
     loss_accs = train.train(args, model, train_loader, val_loader, test_loader,
-                            model_savefilename, checkpoint_type, logfile)
+                            model_savefilename, checkpoint_type, 
+                            logfile, summaryfile)
+
+    if args.wandb_proj is not None:
+        wandb.finish()
 
     return loss_accs
 

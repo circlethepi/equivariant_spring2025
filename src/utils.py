@@ -16,6 +16,11 @@ def set_seed(seed):
 
     return
 
+def get_device():
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if \
+                          torch.backends.mps.is_available() else "cpu")
+    return device
+
 # logging/writing things
 def make_logfile(filepath):
     """opens a file (that will need to be closed)"""

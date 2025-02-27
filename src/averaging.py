@@ -6,7 +6,7 @@ from tqdm import tqdm
 import random
 import wandb
 from src import train
-from utils import *
+from src.utils import *
 
 class RotatedDataset(Dataset):
     def __init__(self, original_dataset, angles):
@@ -119,3 +119,9 @@ def average_and_evaluate(model, dataloader, device, topk=(1,), step=None,
 # TODO: /wishlist item: Group class that will calculate the actions we want 
 # TODO: conversion for layer-wise: will need to get out activations and apply 
 # to each one?
+
+class Group:
+
+    def __init__(self, actions):
+        self.actions = actions
+    

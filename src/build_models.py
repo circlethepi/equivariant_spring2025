@@ -105,7 +105,7 @@ def build_model_from_args(args):
                                            im_input=data_sizes['im'][-1])
             data_sizes['im'].append(new_spatial)
 
-            if args.weight_normalization:
+            if args.normalize_weights:
                 custom_blocks.add_layer(\
                     nn.utils.parametrizations.weight_norm(new_layer),
                         configured=True)
@@ -182,10 +182,11 @@ def get_model_savename(args, architecture=True, dataload=True, optimizer=True):
     """
 
     # get the architecture name
-    conv_arch = "-".join(args.arch)
+    conv_arch = "-".join(args.arch) + "-"
     batch_norm = "bn" if args.batch_norm else ""
     bias = f'{"nobias" if not args.bias else ""}'
-    avg_pool = f'A({".".join(str(k) for k in args.avgpool_size)})' if args.avgpool else " "
+    # avg_pool = f'A({".".join(str(k) for k in args.avgpool_size)})' if args.avgpool else " "
+    avg_pool = f'A{args.avgpool_size}' if args.avgpool else ""
     classifier = f'+C{"-".join([str(k) for k in args.classifier_layers])}'
     class_bias = f'{"nocbias" if not args.classifier_bias else ""}'
     arch_name = "arch"+"".join([conv_arch, batch_norm, bias, avg_pool, classifier, class_bias])
@@ -197,7 +198,7 @@ def get_model_savename(args, architecture=True, dataload=True, optimizer=True):
     data_name = "".join([dataset, greyscale, batchname])
 
     # get the training params name
-    optim = f'{args.optimizer}_lr{args.lr}_wd{args.weight_decay}'
+    optim = f'{args.optimizer}_lr{args.lr}'#_wd{args.weight_decay}'
     cdrop = f'{args.classifier_dropout if args.classifier_dropout > 0 else ""}'
     opt_name = "_".join([optim, cdrop])
 
@@ -242,4 +243,7 @@ def parse_checkpoint_log_info(args):
         json.dump(args.__dict__, file, indent=2, default=str) 
     print_and_write(f"Command line: {' '.join(sys.argv)}", logfile)
 
-    return model_savefilename, model_savedir, checkpoint_type, logfile
+    # creat summary file for summary including best run etc
+    summaryfile = make_logfile(os.path.join(log_savedir, f'SUMMARY_{basic_train_info}.log'))
+
+    return model_savefilename, checkpoint_type, logfile, summaryfile

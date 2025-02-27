@@ -1,5 +1,5 @@
 notebooks/*
-*.egg -info
+*.egg-info
 results/model_library/*
 data/*
 checkpoints/*
