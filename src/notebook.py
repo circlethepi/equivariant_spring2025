@@ -90,6 +90,7 @@ class NotebookExperiment:
             wandb.init(project=self.args.wandb_proj,
                        config=self.args,
                        name=self.name)
+            self.wandb_log=True
         
         self.savefilename, self.checkpoint, self.logfile, self.summaryfile = \
             build.parse_checkpoint_log_info(self.args)
@@ -115,3 +116,15 @@ class NotebookExperiment:
                             self.savefilename, self.checkpoint, self.logfile, self.summaryfile)
 
         return loss_accs
+    
+    def test(self, dataloader, loader_name, step=None):
+
+        test_vals = train.evaluate_model(self.model,
+                                         dataloader,
+                                         loader_name=loader_name,
+                                         device=get_device(),
+                                         topk=(1,5),
+                                         step=step,
+                                         wandb_log=self.wandb_log)
+
+        return test_vals

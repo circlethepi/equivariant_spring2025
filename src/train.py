@@ -130,7 +130,25 @@ def train_model(model, train_loader, val_loader, #args,
                     'val_accuracy_1': val1,
                     'val_accuracy_5': val5,
                     }
-                    save_model(savestate, epoch-1, checkpoint_type, checkpoint_path)
+
+                    wandb_save = {
+                    'epoch': epoch-1,
+                    'batch': global_batch_counter,
+                    'loss' : train_loss.avg,
+                    'train_accuracy_1': train1.avg,
+                    'train_accuracy_5': train5.avg,
+                    'val_loss': val_loss,
+                    'val_accuracy_1': val1,
+                    'val_accuracy_5': val5,
+                    }
+
+                    save_model(savestate, interval=global_batch_counter, 
+                               checkpoint_type=checkpoint_type, 
+                               checkpoint_path=checkpoint_path,
+
+                            wandb_log=True, wandb_save=wandb_save, 
+                            wandb_step=global_batch_counter)
+
 
 
             # train_loss = running_loss / len(train_loader)
@@ -154,8 +172,22 @@ def train_model(model, train_loader, val_loader, #args,
                     'val_accuracy_1': val1,
                     'val_accuracy_5': val5,
                 }
-                save_model(savestate, epoch-1, checkpoint_type, checkpoint_path)
-            
+                wandb_save = {
+                    'epoch': epoch-1,
+                    'batch': global_batch_counter,
+                    'loss' : train_loss.avg,
+                    'train_accuracy_1': train1.avg,
+                    'train_accuracy_5': train5.avg,
+                    'val_loss': val_loss,
+                    'val_accuracy_1': val1,
+                    'val_accuracy_5': val5,
+                }
+                save_model(savestate, epoch-1, checkpoint_type, 
+                           checkpoint_path=checkpoint_path,
+
+                           wandb_log=True, wandb_save=wandb_save, 
+                           wandb_step=global_batch_counter)
+                
             # check if best at each epoch
             if epoch > 1:
                 best_types = check_acc_loss_1_5(train_losses, train_accuracies_1, train_accuracies_5)
@@ -204,16 +236,14 @@ def train_model(model, train_loader, val_loader, #args,
                     'val_loss': val_loss,
                     'val_accuracy_1': val1,
                     'val_accuracy_5': val5,
-                }, epoch-1, checkpoint_type, checkpoint_path, force=True)
+                }, epoch-1, checkpoint_type, checkpoint_path)
+            
         
         message = f'Final Val Loss: {val_loss:.4f}, acc@1: {val1:.2f}%, acc@5: {val5:.2f}%'
         print_and_write(message, logfile)
         wandb.log({
-                    # 'epoch': epoch-1,
-                    # 'batch': global_batch_counter,
-                    # 'model_state_dict': model.state_dict(),
-                    # 'optimizer_state_dict': optimizer.state_dict(),
-                    # 'loss': running_loss / (global_batch_counter % len(train_loader)),
+                    'epoch': epoch-1,
+                    'batch': global_batch_counter,
                     'loss' : train_loss.avg,
                     'train_accuracy_1': train1.avg,
                     'train_accuracy_5': train5.avg,
@@ -227,17 +257,19 @@ def train_model(model, train_loader, val_loader, #args,
         return train_losses, train_accuracies_1, train_accuracies_5, val_losses, val_accuracies_1, val_accuracies_5
 
 
-def save_model(save_state, interval, checkpoint_type, checkpoint_path, 
-               wandb_log=False, isbesttype=None):
-    if checkpoint_type == "batch":
-        torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_batch{interval}.pth.tar'))
-    elif checkpoint_type == "epoch":
-        torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar'))
-    elif isbesttype is not None:
-        torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_{checkpoint_type}_best{isbesttype}.pth.tar'))
+def save_model(save_state, interval, checkpoint_type, checkpoint_path=None, 
+               isbesttype=None,
+               wandb_log=False, wandb_save=None, wandb_step=None):
+    if checkpoint_path is not None:
+        if isbesttype is not None:
+            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_{checkpoint_type}_best{isbesttype}.pth.tar'))
+        elif checkpoint_type == "batch":
+            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_batch{interval}.pth.tar'))
+        elif checkpoint_type == "epoch":
+            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar'))
     
     if wandb_log:
-        # TODO: add logging here if we want it
+        wandb.log(wandb_save, step=wandb_step)
         pass
 
 

@@ -46,10 +46,38 @@ class MnistRotDataset(Dataset):
             
             def __len__(self):
                 return len(self.labels)
+
+# 2025-02-27 MO: bringing this here to add as a training dataset option
+# copied directly from averaging.py
+# TODO: move dataset stuff from there to this file?
+class RotatedDataset(Dataset):
+    def __init__(self, original_dataset, angles):
+        self.original_dataset = original_dataset
+        self.angles = angles
+
+    def __len__(self):
+        return len(self.original_dataset)
+
+    def __getitem__(self, idx):
+        img, label = self.original_dataset[idx]
+        angle = random.choice(self.angles)
+
+        rotated_img = rotate_tensor(img, angle)
+        return rotated_img, label
+
+def rotate_tensor(tensor, angle):
+    return transforms.functional.rotate(tensor, angle)
+
+
+def random_rotate_dataset(dataloader, angles=[0, 90, 180, 270]):
+    original_dataset = dataloader.dataset
+    rotated_dataset = RotatedDataset(original_dataset, angles)
+    return torch.utils.data.DataLoader(rotated_dataset, batch_size=dataloader.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+
             
 
 def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
-    # TODO: add in aumentations / group actions (or maybe those go in make transforms or something)
+    # TODO: add in augmentations / group actions (or maybe those go in make transforms or something)
     """get train and val datasets from params"""
 
     train_transforms = []
@@ -57,7 +85,10 @@ def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
     both_transforms = []
 
     # Normalization 
-    if dataset_name == 'mnist':
+    if dataset_name == '90deg_mnist':
+        dataset_name = 'mnist'
+
+    if dataset_name in ('mnist', 'rotated_mnist'):
         mean = [0.1307]
         std = [0.3081]
         # pad = transforms.Pad((0,0,1,1), fill = 0)
@@ -66,33 +97,39 @@ def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
     elif dataset_name == 'rotated_mnist':
         mean = [0.1307]
         std = [0.3081]
-        pad = transforms.Pad((0,0,1,1), fill = 0)
-        resize1 = transforms.Resize(87)
-        resize2 = transforms.Resize(29)
-        rotate = transforms.RandomRotation(180, interpolation=Image.BILINEAR, expand=False)
-        train_transforms = [pad, resize1, rotate, resize2]
-        test_transforms = [pad]
+        # 2025-02-27 MO: removing random rotation here - can add back if we want later
+        # pad = transforms.Pad((0,0,1,1), fill = 0)
+        # resize1 = transforms.Resize(87)
+        # # resize2 = transforms.Resize(29)
+        # resize2 = transforms.Resize(28) # back to original size? 
+        # rotate = transforms.RandomRotation(180, interpolation=Image.BILINEAR, expand=False)
+        # train_transforms = [pad, resize1, rotate, resize2]
+        # test_transforms = [pad]
     elif greyscale:
         mean = [0.481]
         std = [0.239]
-        #Reduce channels to 1
-        both_transforms.append(transforms.Grayscale())
+        # both_transforms.append(transforms.Grayscale()) # add greyscale
     else:
         # mean = [0.485, 0.456, 0.406]
         # std = [0.229, 0.224, 0.225]
         mean = [0.5, 0.5, 0.5]
         std = [0.5, 0.5, 0.5]
+    
     both_transforms.extend([
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
         ])
+    
+
     if greyscale:
         both_transforms.append(transforms.Grayscale())
+
     standard_datasets = dict(
         cifar10=datasets.CIFAR10,
         cifar100=datasets.CIFAR100,
         mnist=datasets.MNIST,
     ) 
+
     if dataset_name in standard_datasets:
         standard_dataset = standard_datasets[dataset_name]
         
@@ -131,10 +168,14 @@ def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
 
         train_set = MnistRotDataset(mode = "train", transform=transforms.Compose(train_transforms+both_transforms),extract_path=extract_path)
         test_set = MnistRotDataset(mode = "test", transform=transforms.Compose(test_transforms+both_transforms),extract_path=extract_path)
+
+    
     else:
         raise ValueError(f"dataset {dataset_name} not supported")
 
     return train_set, test_set
+
+
 
 
 
@@ -176,6 +217,11 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
     val_loader = get_dataloader(val_set, args.batch_size, shuffle=False)
     test_loader = get_dataloader(test_set, args.batch_size, shuffle=False)
 
+    if args.dataset == '90deg_mnist':
+        train_loader = random_rotate_dataset(train_loader)
+        val_loader = random_rotate_dataset(val_loader)
+        test_loader = random_rotate_dataset(test_loader)
+
     return train_loader, val_loader, test_loader
 
 
@@ -195,6 +241,11 @@ def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False):
     val_load = get_dataloader(val_set, batch_size=batch_size, shuffle=False)
 
     test_load = get_dataloader(test_set, batch_size=batch_size, shuffle=False)
+
+    if dataset_name == '90deg_mnist':
+        train_load = random_rotate_dataset(train_load)
+        val_load = random_rotate_dataset(val_load)
+        test_load = random_rotate_dataset(test_load)
     
     return train_load, val_load, test_load
 

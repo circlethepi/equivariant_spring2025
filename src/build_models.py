@@ -18,14 +18,14 @@ def get_input_dimensions(args):
     """get dataset dimensions (number of channels) and input image dimensions
     from args dataset information
     """
-    if args.dataset.startswith("mnist"):
+    if "mnist" in args.dataset:
         channels_in = 1
     else:
         channels_in = 3
     if args.greyscale:
         channels_in = 1
     
-    size_dict = {'cifar': 32, 'mnist': 28}
+    size_dict = {'cifar': 32, 'mnist': 28, 'rotated_mnist': 28, '90deg_mnist': 28}
     image_size = size_dict[args.dataset]
 
     # class_dict = {'cifar100': 100,}
@@ -135,19 +135,11 @@ def build_model_from_args(args):
     else:
         avgpool=None
 
-    # Use a dummy input tensor to calculate the output size
-    # dummy_input = torch.randn(1, 1 if args.greyscale else 3, args.input_height, args.input_width)
-    # dummy_output = custom_blocks.model(dummy_input)
-    # print(dummy_output.shape())
-    # output_size = dummy_output.view(1, -1).size(1)
     
     # calculate input size to classifier
     output_from_conv = int(data_sizes['ch'][-1] * data_sizes['im'][-1]**2)
-    print('all channel sizes: ', data_sizes['ch'])
-    print('all spatial sizes: ', data_sizes['im'])
-
-    # print('output size of last layer: ', input_channels)
-    # print('into classifier sizes: ', output_size)
+    # print('all channel sizes: ', data_sizes['ch'])
+    # print('all spatial sizes: ', data_sizes['im'])
 
     # make the classifier
     if args.classifier_dropout == 0:

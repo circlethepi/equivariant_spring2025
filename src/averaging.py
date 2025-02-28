@@ -114,7 +114,7 @@ def average_and_evaluate(model, dataloader, device, topk=(1,), step=None,
             logdict = dict(zip(keys, vals))
             wandb.log(logdict, step=step)
                 
-    return values
+    return vals
 
 # TODO: /wishlist item: Group class that will calculate the actions we want 
 # TODO: conversion for layer-wise: will need to get out activations and apply 
