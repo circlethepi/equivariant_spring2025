@@ -85,7 +85,7 @@ def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
     both_transforms = []
 
     # Normalization 
-    if dataset_name == '90deg_mnist':
+    if dataset_name == '90deg_mnist' or dataset_name == '45deg_mnist':
         dataset_name = 'mnist'
 
     if dataset_name in ('mnist', 'rotated_mnist'):
@@ -97,14 +97,8 @@ def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
     elif dataset_name == 'rotated_mnist':
         mean = [0.1307]
         std = [0.3081]
-        # 2025-02-27 MO: removing random rotation here - can add back if we want later
-        # pad = transforms.Pad((0,0,1,1), fill = 0)
-        # resize1 = transforms.Resize(87)
-        # # resize2 = transforms.Resize(29)
-        # resize2 = transforms.Resize(28) # back to original size? 
-        # rotate = transforms.RandomRotation(180, interpolation=Image.BILINEAR, expand=False)
-        # train_transforms = [pad, resize1, rotate, resize2]
-        # test_transforms = [pad]
+        # 2025-02-27 MO: removing additional random rotation here - can add back if we want later
+
     elif greyscale:
         mean = [0.481]
         std = [0.239]
@@ -221,6 +215,11 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
         train_loader = random_rotate_dataset(train_loader)
         val_loader = random_rotate_dataset(val_loader)
         test_loader = random_rotate_dataset(test_loader)
+    elif args.dataset == '45deg_mnist':
+        angles = list(range(0, 360, 45))
+        train_loader = random_rotate_dataset(train_loader, angles=angles)
+        val_loader = random_rotate_dataset(val_loader, angles=angles)
+        test_loader = random_rotate_dataset(test_loader, angles=angles)
 
     return train_loader, val_loader, test_loader
 
@@ -228,18 +227,16 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
 
 # getting dataloaders for notebook environment / testing
 def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False):
+
     train_set, test_set = get_datasets(dataset_name=dataset_name, 
                                           greyscale=greyscale)
     
     #Adding a validation set
-
     train_set, val_set = train_test_split(train_set, test_size=0.2, random_state=42)
-
     train_load = get_dataloader(train_set, batch_size=batch_size, shuffle=True)
 
     #Added a val loader
     val_load = get_dataloader(val_set, batch_size=batch_size, shuffle=False)
-
     test_load = get_dataloader(test_set, batch_size=batch_size, shuffle=False)
 
     if dataset_name == '90deg_mnist':

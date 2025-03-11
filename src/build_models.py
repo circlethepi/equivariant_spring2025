@@ -25,7 +25,8 @@ def get_input_dimensions(args):
     if args.greyscale:
         channels_in = 1
     
-    size_dict = {'cifar': 32, 'mnist': 28, 'rotated_mnist': 28, '90deg_mnist': 28}
+    size_dict = {'cifar': 32, 'mnist': 28, 'rotated_mnist': 28, 
+                 '90deg_mnist': 28, '45deg_mnist' : 28}
     image_size = size_dict[args.dataset]
 
     # class_dict = {'cifar100': 100,}

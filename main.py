@@ -48,7 +48,7 @@ def build_parser():
                         default=1, help='avgpool kernel size')
     parser.add_argument('--classifier-layers', type=int, nargs='*', 
                         help='linear classifier layers',
-                        default=[4096, 4096, 4096])
+                        default=[4096, 4096])
     parser.add_argument('--classifier-bias', action='store_const', 
                         default=True, const=True, 
                         help='add bias to classifier (default: True)' )
@@ -70,7 +70,7 @@ def build_parser():
     parser.add_argument('--batch-size', type=int, default=128, help='batch size')
     parser.add_argument('--optimizer', type=str, default='Adam', 
                         help='optimizer to use (default: Adam)')
-    parser.add_argument('--lr', type=float, default=0.001, 
+    parser.add_argument('--lr', type=float, default=0.00001, 
                         help='learning rate for the optimizer (default: 0.001)')
     parser.add_argument('--momentum', type=float, default=0.9, 
                         help='momentum for the optimizer (default: 0.9, only for optimizers that use momentum)')

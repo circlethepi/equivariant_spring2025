@@ -34,6 +34,7 @@ def build_model(vgg_layers=['64', 'M', '64', 'M'],
                                      avgpool_size=avgpool_size,
                                      dataset=dataset,
                                      greyscale=greyscale,
+                                     seed=0,
                                      n_classes = 100 if dataset == "cifar100" else 10)
     
 
@@ -44,6 +45,7 @@ def build_model(vgg_layers=['64', 'M', '64', 'M'],
 
 
 # currently manually takes in the same arguments as specified in main.py
+# except the default arch. 
 default_arch = ['64', 'M', '64', 'M']
 default_args = dict(arch=default_arch,
                 batch_norm = False,
@@ -51,7 +53,7 @@ default_args = dict(arch=default_arch,
                 normalize_weights=False,
                 avgpool=True,
                 avgpool_size=1,
-                classifier_layers=[4096],
+                classifier_layers=[4096, 4096],
                 classifier_bias=False,
                 classifier_dropout=0,
 
@@ -61,9 +63,9 @@ default_args = dict(arch=default_arch,
                 seed=0,
 
                 epochs=100,
-                batch_size=128,
+                batch_size=256,
                 optimizer='Adam',
-                lr=1e-3,
+                lr=1e-5,
                 
                 criterion='CrossEntropyLoss',
                 save_model=True,
@@ -81,6 +83,7 @@ class NotebookExperiment:
         # set default values as defined immediately above
         arg_dict = default_args.copy()
         arg_dict.update(kwargs) # update any new values specified
+        print(arg_dict)
         self.args = argparse.Namespace(**arg_dict)
         self.name = build.get_model_savename(self.args)
 
