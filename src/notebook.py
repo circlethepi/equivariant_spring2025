@@ -51,7 +51,7 @@ default_args = dict(arch=default_arch,
                 batch_norm = False,
                 bias=False,
                 normalize_weights=False,
-                avgpool=True,
+                avgpool=False,
                 avgpool_size=1,
                 classifier_layers=[4096, 4096],
                 classifier_bias=False,
@@ -59,6 +59,9 @@ default_args = dict(arch=default_arch,
 
                 dataset='mnist',
                 greyscale=False,
+                data_rt_inc=None,
+                data_rt_fill=True,
+                data_upsample=56,
 
                 seed=0,
 

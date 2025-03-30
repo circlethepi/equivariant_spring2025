@@ -63,6 +63,12 @@ def build_parser():
     data_choices = ['cifar', 'mnist']
     parser.add_argument('--dataset', type=str, choices=data_choices, help='dataset name') # which dataset
     parser.add_argument('--greyscale', '--grayscale', type=bool, default=False) # whether to make greyscale
+    parser.add_argument('--data-rt-inc', type=int, help='rotation increment')
+    parser.add_argument('--data-upsample', type=int, help='upsample size for rotation')
+    parser.add_argument('--data-rt-fill', action='store_const', default=True, const=True, help='whether to fill in rotated images with zeros (default: True)')
+    parser.add_argument('--data-no-rt-fill', action='store_false', dest='data-rt-fill')
+        ## TODO: add option for custom fill values
+        ## TODO: check if this works for RGB/3 channel data
 
     ## TODO: training parameters
     parser.add_argument('--seed', type=int, help='seed for model initialization', default=0)

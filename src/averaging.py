@@ -12,9 +12,6 @@ class RotatedDataset(Dataset):
     def __init__(self, original_dataset, angles):
         self.original_dataset = original_dataset
         self.angles = angles
-        # self.transform = transforms.Compose([
-        #     transforms.ToPILImage(),
-        # ])
 
     def __len__(self):
         return len(self.original_dataset)
@@ -22,16 +19,11 @@ class RotatedDataset(Dataset):
     def __getitem__(self, idx):
         img, label = self.original_dataset[idx]
         angle = random.choice(self.angles)
-        # rotated_img = self.transform(img).rotate(angle)
-        # rotated_img = transforms.ToTensor()(rotated_img)
         rotated_img = rotate_tensor(img, angle)
         return rotated_img, label
 
 
 def rotate_tensor(tensor, angle):
-    # pil_image = transforms.ToPILImage()(tensor)
-    # rotated_image = pil_image.rotate(angle)
-    # return transforms.ToTensor()(rotated_image)
     return transforms.functional.rotate(tensor, angle)
 
 

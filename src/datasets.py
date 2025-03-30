@@ -49,11 +49,26 @@ class MnistRotDataset(Dataset):
 
 # 2025-02-27 MO: bringing this here to add as a training dataset option
 # copied directly from averaging.py
+# 2025-03-27 MO: adjusted version to include upsampling
 # TODO: move dataset stuff from there to this file?
 class RotatedDataset(Dataset):
-    def __init__(self, original_dataset, angles):
+    """
+    Custom Dataset class for rotating/filling images
+    """
+    def __init__(self, original_dataset, angles, 
+                 upsample=None, downsample=None, fill=None):
         self.original_dataset = original_dataset
         self.angles = angles
+        self.fill = fill
+
+        if upsample is not None:
+            assert upsample > 0, "upsample must be greater than 0"
+        self.original_size = original_dataset[0][0].shape[-1]
+        if downsample is not None:
+            assert downsample > 0, "downsample must be greater than 0"
+
+        self.downsample = downsample if downsample is not None else self.original_size
+        self.upsample = upsample if upsample is not None else self.original_size
 
     def __len__(self):
         return len(self.original_dataset)
@@ -62,19 +77,53 @@ class RotatedDataset(Dataset):
         img, label = self.original_dataset[idx]
         angle = random.choice(self.angles)
 
-        rotated_img = rotate_tensor(img, angle)
-        return rotated_img, label
+        # upsample
+        up_img = transforms.functional.resize(img, (self.upsample, self.upsample)) \
+              if self.upsample > img.shape[-1] else img
+        # rotate       
+        rotated_img = rotate_tensor(up_img, angle, self.fill) 
+        # downsample
 
-def rotate_tensor(tensor, angle):
-    return transforms.functional.rotate(tensor, angle)
+        down_img = transforms.functional.resize(rotated_img, (self.downsample, self.downsample))
+        
+        return down_img, label
+
+def rotate_tensor(tensor, angle, fill):
+    return transforms.functional.rotate(tensor, angle, fill=fill)
 
 
-def random_rotate_dataset(dataloader, angles=[0, 90, 180, 270]):
+def calculate_possible_angles(increment, comma_loc=0):
+    """
+    Helper function to calculate angle list from a given increment
+    Angles calculated from 0 to 360 degrees
+    """
+    # TODO: comma location other than 0
+    assert increment != 0
+    angles = [int(k) for k in np.arange(0, 360, increment)]
+    return angles 
+
+
+def random_rotate_dataset(dataloader, increment=None, angles=None,
+                          upsample_size=None, fill=None):
+    """
+    Generates a rotated version of a dataloader
+    """
+   # get angles
+    angles = angles if angles is not None else calculate_possible_angles(increment)
     original_dataset = dataloader.dataset
-    rotated_dataset = RotatedDataset(original_dataset, angles)
-    return torch.utils.data.DataLoader(rotated_dataset, batch_size=dataloader.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    original_size = original_dataset[0][0].shape[-1] 
 
+    if fill == True:
+        fill = torch.min(dataloader.dataset[0][0]).item() 
+
+    # new dataset
+    rotated_dataset = RotatedDataset(original_dataset, angles, upsample=upsample_size,
+                                     downsample=original_size, fill=fill)
+
+    return torch.utils.data.DataLoader(rotated_dataset, batch_size=dataloader.batch_size,
+                                       shuffle=False, num_workers=0, pin_memory=True)
             
+
 
 def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
     # TODO: add in augmentations / group actions (or maybe those go in make transforms or something)
@@ -171,9 +220,6 @@ def get_datasets(dataset_name: str, greyscale: bool=False, image_size=None):
 
 
 
-
-
-
 # TODO: additional custom transformations / data augmentations / group actions
 
 def additional_transforms(train_set, test_set, transforms):
@@ -211,22 +257,39 @@ def get_dataloaders(args, logfile=None, summaryfile=None, log=True):
     val_loader = get_dataloader(val_set, args.batch_size, shuffle=False)
     test_loader = get_dataloader(test_set, args.batch_size, shuffle=False)
 
+    # TODO: model after notebook, get better handling 
     if args.dataset == '90deg_mnist':
-        train_loader = random_rotate_dataset(train_loader)
-        val_loader = random_rotate_dataset(val_loader)
-        test_loader = random_rotate_dataset(test_loader)
+        angles = list(range(0, 360, 90))
     elif args.dataset == '45deg_mnist':
         angles = list(range(0, 360, 45))
-        train_loader = random_rotate_dataset(train_loader, angles=angles)
-        val_loader = random_rotate_dataset(val_loader, angles=angles)
-        test_loader = random_rotate_dataset(test_loader, angles=angles)
+    elif args.data_rt_inc is not None:
+        angles = calculate_possible_angles(args.data_rt_inc)
+    else:
+        angles = None
+    
+    if args.data_rt_fill is not None and args.data_rt_fill == True:
+        fill = torch.min(train_loader.dataset[0][0]).item() # get the minimum value in the dataset to fill with
+    else:
+        fill = None
+
+
+    if angles is not None:
+        train_loader = random_rotate_dataset(train_loader, angles=angles, 
+                            fill=fill)
+        val_loader = random_rotate_dataset(val_loader, angles=angles, 
+                            fill=fill)
+        test_loader = random_rotate_dataset(test_loader, angles=angles,
+                            fill=fill)
+        
 
     return train_loader, val_loader, test_loader
 
 
 
 # getting dataloaders for notebook environment / testing
-def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False):
+def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False,
+                         angles=None, increment=None, 
+                         upsample_size=None, fill=None):
 
     train_set, test_set = get_datasets(dataset_name=dataset_name, 
                                           greyscale=greyscale)
@@ -239,10 +302,25 @@ def notebook_dataloaders(dataset_name="mnist", batch_size=256, greyscale=False):
     val_load = get_dataloader(val_set, batch_size=batch_size, shuffle=False)
     test_load = get_dataloader(test_set, batch_size=batch_size, shuffle=False)
 
-    if dataset_name == '90deg_mnist':
-        train_load = random_rotate_dataset(train_load)
-        val_load = random_rotate_dataset(val_load)
-        test_load = random_rotate_dataset(test_load)
+    
+    if dataset_name == '90deg_mnist': # predetermined
+        angles = list(range(0, 360, 90))
+
+    if increment is not None: # if given increment
+        angles = angles if angles is not None else \
+            calculate_possible_angles(increment)
+    
+    # random rotate parameters
+    if fill == True:
+        fill = torch.min(train_load.dataset[0][0]).item()
+
+    if angles is not None: # rotate
+        train_load = random_rotate_dataset(train_load, angles=angles, 
+                            fill=fill, upsample_size=upsample_size)
+        val_load = random_rotate_dataset(val_load, angles=angles, 
+                            fill=fill, upsample_size=upsample_size)
+        test_load = random_rotate_dataset(test_load, angles=angles,
+                            fill=fill, upsample_size=upsample_size)
     
     return train_load, val_load, test_load
 

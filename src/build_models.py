@@ -185,7 +185,10 @@ def get_model_savename(args, architecture=True, dataload=True, optimizer=True):
     arch_name = "arch"+"".join([conv_arch, batch_norm, bias, avg_pool, classifier, class_bias])
 
     # get the dataset name
-    dataset = args.dataset + '_'
+    dataset = args.dataset 
+    dataset += '' if args.data_rt_inc is None else f"{args.data_rt_inc}"
+    dataset += '' if args.data_rt_fill else 'nofill' 
+    dataset += "_"
     greyscale = 'g_' if args.greyscale else ""
     batchname = f'batch{args.batch_size}'
     data_name = "".join([dataset, greyscale, batchname])
