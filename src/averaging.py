@@ -72,7 +72,7 @@ def average_and_evaluate(model, dataloader, device, topk=(1,), step=None,
     group action on x. ideally, all actions in a group (or a basis)
     """
     if actions is None:
-        values = train.evaluate_model(model, dataloader, device, topk=topk,
+        vals = train.evaluate_model(model, dataloader, device, topk=topk,
                         step=step, desc=desc, print_acc=print_acc, 
                         wandb_log=wandb_log, loader_name=loader_name)
     

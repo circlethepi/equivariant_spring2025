@@ -6,6 +6,8 @@ import src.train as train
 from globals import *
 import argparse
 import wandb
+import src.emlp_torch as emlp_torch
+
 
 from src.utils import *
 
@@ -134,3 +136,31 @@ class NotebookExperiment:
                                          wandb_log=self.wandb_log)
 
         return test_vals
+    
+
+class NotebookEMLP(NotebookExperiment):
+
+    def __init__(self, rep_in, rep_out, group, **kwargs):
+        super.__init__()
+
+        if kwargs["ch"] is not None:
+            n_ch = kwargs["ch"]
+        else:
+            n_ch = 640
+
+        if kwargs["num_layers"] is not None:
+            num_layers = kwargs["num_layers"]
+        else:
+            num_layers = 4
+        
+        if kwargs['name'] is not None:
+            self.savename = kwargs['name'] 
+        else:
+            self.savename = f"emlp_{n_ch}_{num_layers}_{self.args.data_rt_inc}"
+
+        model_savedir = os.path.join(self.args.save_path, self.savename)
+        checkpoint_filename = f'{self.savename}.pth.tar'
+
+        checkpoint_type = "epoch" if self.args.save_epoch else "batch"
+        
+        # self.logfile, self.summaryfile = 

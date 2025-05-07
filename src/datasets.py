@@ -82,11 +82,12 @@ class RotatedDataset(Dataset):
               if self.upsample > img.shape[-1] else img
         # rotate       
         rotated_img = rotate_tensor(up_img, angle, self.fill) 
-        # downsample
 
+        # downsample
         down_img = transforms.functional.resize(rotated_img, (self.downsample, self.downsample))
         
         return down_img, label
+
 
 def rotate_tensor(tensor, angle, fill):
     return transforms.functional.rotate(tensor, angle, fill=fill)

@@ -262,14 +262,26 @@ def save_model(save_state, interval, checkpoint_type, checkpoint_path=None,
                wandb_log=False, wandb_save=None, wandb_step=None):
     if checkpoint_path is not None:
         if isbesttype is not None:
-            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_{checkpoint_type}_best{isbesttype}.pth.tar'))
+            path = checkpoint_path.replace('.pth.tar', f'_{checkpoint_type}_best{isbesttype}.pth.tar')
         elif checkpoint_type == "batch":
-            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_batch{interval}.pth.tar'))
+            path = checkpoint_path.replace('.pth.tar', f'_batch{interval}.pth.tar')
         elif checkpoint_type == "epoch":
-            torch.save(save_state, checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar'))
+            path =  checkpoint_path.replace('.pth.tar', f'_epoch{interval}.pth.tar')
+        else:
+            path = 'ERROR'
+        assert path != "ERROR"
+
+        torch.save(save_state, path)
     
-    if wandb_log:
+    if wandb_log and wandb_save is not None:
         wandb.log(wandb_save, step=wandb_step)
+
+        # save the model state also
+        append = f'best{isbesttype}' if isbesttype is not None else f'{checkpoint_type}{interval}'
+        artifact = wandb.Artifact(f'model_state_{append}', type='model')
+        artifact.add_file(local_path=path ,name=f'model_state_{append}')
+        wandb.log_artifact(artifact)
+
         pass
 
 
